@@ -1,0 +1,396 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Plantão de Redes</title>
+<meta name="description" content="Simulador de chamados de rede em português: motor de rede real, mapa ao vivo e defeitos aleatórios.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..100,600;75..100,800&family=IBM+Plex+Sans:wght@400;600&family=IBM+Plex+Mono:wght@400;600&display=swap">
+<style>
+:root{
+  --bg:#eef1f0;--panel:#ffffff;--ink:#15201f;--mute:#5d6b69;--line:#d6dedc;
+  --accent:#0e7c6b;--accent-ink:#ffffff;--accent-soft:#dcefeb;
+  --term:#0f1a1c;--term-ink:#d7e6e3;--term-dim:#7f9995;--term-note:#f2c46d;--term-ok:#7fd8a6;--term-bad:#ff8f80;--term-pr:#6fd3c4;
+  --p1:#b42318;--p1s:#fde7e4;--p2:#b45309;--p2s:#fdf0dc;--p3:#3b6fb0;--p3s:#e3ecf8;--ok:#1f7a45;--oks:#e0f2e8;
+  --lk-ok:#2f9e7a;--lk-down:#c2410c;--lk-blk:#c98a12;--lk-storm:#e11d48;--lk-off:#9aa8a6;
+  --display:"Archivo","Arial Narrow",system-ui,sans-serif;--body:"IBM Plex Sans","Segoe UI",system-ui,sans-serif;--mono:"IBM Plex Mono",ui-monospace,Consolas,monospace;
+  color-scheme:light}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#111817;--panel:#18211f;--ink:#e3ebe9;--mute:#9aaba8;--line:#2c3836;--accent:#3cc2ab;--accent-ink:#06201b;--accent-soft:#16332e;--term:#0a1112;
+  --p1:#ff8f80;--p1s:#3a1c18;--p2:#f0b35e;--p2s:#35270f;--p3:#8db7ef;--p3s:#1a2738;--ok:#7fd8a6;--oks:#163323;
+  --lk-ok:#4cc79f;--lk-down:#ff7a45;--lk-blk:#f0b35e;--lk-storm:#ff4d6d;--lk-off:#5b6b69;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#111817;--panel:#18211f;--ink:#e3ebe9;--mute:#9aaba8;--line:#2c3836;--accent:#3cc2ab;--accent-ink:#06201b;--accent-soft:#16332e;--term:#0a1112;
+  --p1:#ff8f80;--p1s:#3a1c18;--p2:#f0b35e;--p2s:#35270f;--p3:#8db7ef;--p3s:#1a2738;--ok:#7fd8a6;--oks:#163323;--lk-ok:#4cc79f;--lk-down:#ff7a45;--lk-blk:#f0b35e;--lk-storm:#ff4d6d;--lk-off:#5b6b69;color-scheme:dark}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 var(--body)}
+button,input,select{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+code{font:400 .86em var(--mono);background:var(--accent-soft);padding:1px 5px;border-radius:5px;overflow-wrap:anywhere}
+
+.topo{position:sticky;top:0;z-index:5;display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;padding:10px max(16px,env(safe-area-inset-right)) 10px max(16px,env(safe-area-inset-left));background:var(--panel);border-bottom:1px solid var(--line)}
+.marca b{display:block;font:800 1.45rem/1 var(--display);font-stretch:80%}
+.marca span{font-size:.78rem;color:var(--mute)}
+.hud{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-left:auto}
+.chip{font:600 .78rem var(--mono);padding:4px 9px;border-radius:99px;background:var(--bg);white-space:nowrap}
+.chip b{color:var(--accent)}
+.vidas{font-size:1rem;letter-spacing:2px;color:var(--p1)}
+.sla{position:relative;width:150px;height:24px;border-radius:99px;background:var(--bg);overflow:hidden}
+.sla i{position:absolute;inset:0 auto 0 0;background:var(--accent);opacity:.25;transition:width .3s linear}
+.sla.alerta i{background:var(--p1);opacity:.35}
+.sla span{position:relative;display:block;text-align:center;font:600 .76rem/24px var(--mono)}
+.ctl{display:flex;gap:6px}
+.ib{border:1.5px solid var(--line);background:var(--panel);border-radius:9px;padding:5px 10px;cursor:pointer;font-weight:600;font-size:.85rem}
+.ib:hover{border-color:var(--accent)}
+
+.mesa{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.05fr);gap:16px;padding:16px max(16px,env(safe-area-inset-right)) 60px max(16px,env(safe-area-inset-left));max-width:1500px;margin:0 auto}
+.col{display:grid;gap:14px;align-content:start;min-width:0}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px 18px}
+.ticket{display:grid;gap:8px}
+.ticket .cab{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;font:600 .76rem var(--mono);color:var(--mute)}
+.pri{padding:1px 8px;border-radius:99px;font:600 .72rem var(--mono)}
+.pri.P1{background:var(--p1s);color:var(--p1)}.pri.P2{background:var(--p2s);color:var(--p2)}.pri.P3{background:var(--p3s);color:var(--p3)}
+.ticket h1{margin:0;font:800 clamp(1.3rem,2.6vw,1.85rem)/1.12 var(--display);font-stretch:85%;text-wrap:balance}
+.ticket p{margin:0;max-width:70ch}
+.meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:6px 14px;font-size:.88rem}
+.meta b{display:block;font:600 .66rem var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--mute)}
+.vinc{border-left:3px solid var(--p2);padding:6px 10px;background:var(--p2s);border-radius:0 8px 8px 0;font-size:.9rem}
+details.doc{border-top:1px solid var(--line);padding-top:8px}
+details.doc summary{cursor:pointer;font-weight:600;font-size:.9rem;color:var(--accent)}
+.doc table{width:100%;border-collapse:collapse;font-size:.8rem;margin:8px 0}
+.doc th,.doc td{text-align:left;padding:4px 6px;border-bottom:1px solid var(--line);vertical-align:top}
+.doc th{font:600 .68rem var(--mono);text-transform:uppercase;color:var(--mute)}
+.doc ul{margin:6px 0;padding-left:18px;font-size:.84rem}
+.treme{animation:treme .35s}
+@keyframes treme{20%{transform:translateX(-6px)}40%{transform:translateX(6px)}60%{transform:translateX(-4px)}80%{transform:translateX(3px)}}
+
+.mapa{padding:12px 12px 8px}
+.mapa .cabm{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;margin:0 4px 6px}
+.mapa .cabm b{font:800 1.05rem var(--display);font-stretch:85%}
+.leg{display:flex;flex-wrap:wrap;gap:4px 10px;font:400 .7rem var(--mono);color:var(--mute);margin-left:auto}
+.leg i{display:inline-block;width:18px;height:0;border-top:3px solid;vertical-align:middle;margin-right:4px}
+.mapa label{font-size:.78rem;color:var(--mute);display:flex;gap:4px;align-items:center;cursor:pointer}
+#svg{width:100%;height:auto;display:block;touch-action:manipulation}
+.lk{fill:none;stroke-width:3;stroke-linecap:round}
+.lk.ok{stroke:var(--lk-ok)}.lk.inativo{stroke:var(--lk-off);stroke-dasharray:4 5}
+.lk.down{stroke:var(--lk-down);stroke-dasharray:7 6;opacity:.85}.lk.susp{stroke:var(--lk-down);stroke-dasharray:1 5;stroke-width:4}
+.lk.blk{stroke:var(--lk-blk);stroke-dasharray:3 6}.lk.perda{stroke:var(--lk-blk);stroke-width:5}
+.lk.storm{stroke:var(--lk-storm);stroke-width:6;animation:pulsa .35s infinite alternate}
+@keyframes pulsa{to{stroke-width:2.5;opacity:.55}}
+.lbl{font:400 9.5px var(--mono);fill:var(--mute)}
+.lbl.forte{font-weight:600;fill:var(--lk-blk)}
+.nd{cursor:pointer}
+.nd rect{fill:var(--panel);stroke:var(--line);stroke-width:1.5}
+.nd:hover rect{stroke:var(--accent)}
+.nd.sel rect{stroke:var(--accent);stroke-width:3}
+.nd .nm{font:600 11.5px var(--mono);fill:var(--ink)}
+.nd .sb{font:400 10px var(--mono);fill:var(--mute)}
+.nd .sb.bad{fill:var(--p1);font-weight:600}
+.nd .tg{font:600 9px var(--mono);fill:var(--accent-ink)}
+.nd .tgb{fill:var(--accent)}
+.nd.net rect{stroke-dasharray:4 3}
+#pkt{fill:var(--accent);stroke:var(--panel);stroke-width:2}
+.xis{stroke:var(--lk-storm);stroke-width:4;stroke-linecap:round}
+
+.console{background:var(--term);border-radius:14px;overflow:hidden;display:grid;color:var(--term-ink)}
+.abas{display:flex;gap:3px;padding:8px 8px 0;background:#ffffff0a;overflow-x:auto;scrollbar-width:thin}
+.abas button{flex:none;background:none;border:0;border-radius:8px 8px 0 0;padding:6px 10px;cursor:pointer;color:var(--term-dim);font:600 .78rem var(--mono);text-align:left}
+.abas button small{display:block;font-weight:400;font-size:.64rem}
+.abas button[aria-pressed="true"]{background:var(--term);color:var(--term-ink)}
+.tela{height:440px;overflow-y:auto;padding:12px 14px;font:400 .8rem/1.45 var(--mono);white-space:pre-wrap;overflow-wrap:anywhere}
+.tela .pr{color:var(--term-pr)}.tela .out{color:#c3d3d0}.tela .note{color:var(--term-note)}.tela .sys{color:var(--term-dim)}.tela .bad{color:var(--term-bad)}
+.linha{display:flex;gap:8px;align-items:center;padding:8px 14px;border-top:1px solid #ffffff14}
+.linha label{font:600 .82rem var(--mono);color:var(--term-pr);white-space:nowrap;max-width:48%;overflow:hidden;text-overflow:ellipsis}
+.linha input{flex:1;min-width:0;background:transparent;border:0;outline:0;font:400 .9rem var(--mono);color:var(--term-ink);padding:6px 0}
+.chips{display:flex;flex-wrap:wrap;gap:6px;padding:0 14px 12px}
+.chips span{font:600 .68rem var(--mono);color:var(--term-dim);align-self:center}
+.chips button{background:#ffffff12;border:1px solid #ffffff1f;color:var(--term-ink);border-radius:7px;padding:3px 8px;font:400 .74rem var(--mono);cursor:pointer}
+.chips button:hover{border-color:var(--term-pr)}
+.acoes{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.btn{border:0;border-radius:9px;padding:9px 16px;font-weight:600;cursor:pointer;background:var(--accent);color:var(--accent-ink)}
+.btn.sec{background:transparent;border:1.5px solid var(--line);color:var(--ink)}
+.btn.perigo{background:transparent;border:1.5px solid var(--p1s);color:var(--p1)}
+.btn[disabled]{opacity:.45;cursor:default}
+.tg2{font-size:.8rem;color:var(--mute);display:flex;gap:5px;align-items:center;cursor:pointer;margin-left:auto}
+.dicas{display:grid;gap:8px}
+.dica{background:var(--p2s);border-radius:10px;padding:9px 13px;font-size:.9rem}
+.dica b{display:block;color:var(--p2);font:600 .72rem var(--mono)}
+.toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:30;background:var(--panel);border:2px solid var(--p1);border-radius:12px;padding:12px 16px;max-width:min(560px,92vw);box-shadow:0 10px 30px #0004;font-size:.9rem}
+.toast.ok{border-color:var(--ok)}
+.toast b{display:block;margin-bottom:4px}
+.toast ul{margin:0;padding-left:18px}
+.deb{border:2px solid var(--ok);display:grid;gap:10px}
+.deb h2{margin:0;font:800 1.45rem var(--display);font-stretch:85%;color:var(--ok)}
+.deb h3{margin:6px 0 0;font:600 .7rem var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--mute)}
+.deb p{margin:0;max-width:72ch}
+.deb .fala{background:var(--oks);border-radius:10px;padding:10px 13px}
+.deb .aviso{background:var(--p2s);border-radius:10px;padding:10px 13px;color:var(--ink)}
+.deb ul{margin:4px 0;padding-left:18px}
+.pts{font:600 .85rem var(--mono)}
+.estrelas{font-size:1.2rem;color:var(--p2);letter-spacing:3px}
+
+.ov{position:fixed;inset:0;z-index:20;background:rgb(8 18 18 / .74);display:grid;place-items:center;padding:16px;overflow:auto}
+.ov[hidden]{display:none}
+.ov .card{max-width:640px;width:100%;display:grid;gap:12px}
+.ov h2{margin:0;font:800 2rem/1 var(--display);font-stretch:80%}
+.ov p{margin:0}
+.ov ol,.ov ul{margin:0;padding-left:20px}
+.ov select{width:100%;padding:8px;border-radius:9px;border:1.5px solid var(--line);background:var(--panel)}
+.modos{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.modos label{border:1.5px solid var(--line);border-radius:10px;padding:10px;cursor:pointer;display:grid;gap:2px}
+.modos label:has(input:checked){border-color:var(--accent);background:var(--accent-soft)}
+.modos small{color:var(--mute)}
+.rodape{font-size:.82rem;color:var(--mute)}
+.rodape a{color:var(--accent)}
+.grande{font:800 2.6rem/1 var(--display);font-stretch:80%;color:var(--accent)}
+@media (max-width:1000px){.mesa{grid-template-columns:1fr}.tela{height:320px}.sla{width:120px}}
+@media (max-width:560px){.topo{position:static}.hud .chip.opc{display:none}.modos{grid-template-columns:1fr}.card{padding:14px}}
+</style>
+</head>
+<body>
+<header class="topo">
+  <div class="marca"><b>Plantão de Redes</b><span>Fase 1 · motor de rede de verdade</span></div>
+  <div class="hud" aria-live="polite">
+    <span class="chip">Chamado <b id="hN">–</b></span>
+    <span class="chip opc">Nível <b id="hNiv">–</b></span>
+    <span class="chip"><b id="hPts">0</b> pts</span>
+    <span class="chip opc">Recorde <b id="hRec">0</b></span>
+    <span class="vidas" id="hVidas" title="SLAs que ainda pode estourar">♥♥♥</span>
+    <div class="sla" id="sla"><i id="slaBar" style="width:100%"></i><span id="slaTxt">SLA –</span></div>
+  </div>
+  <div class="ctl">
+    <button class="ib" id="bPausa" type="button" aria-label="Pausar (P)">Pausar</button>
+    <button class="ib" id="bSom" type="button" aria-label="Som">Som: on</button>
+  </div>
+</header>
+
+<main class="mesa">
+  <div class="col">
+    <article class="card ticket" id="ticket"></article>
+    <section class="card mapa" aria-label="Mapa da topologia ao vivo">
+      <div class="cabm"><b>Mapa ao vivo</b><label><input type="checkbox" id="cPortas"> portas</label>
+        <span class="leg"><span><i style="border-color:var(--lk-ok)"></i>ok</span><span><i style="border-color:var(--lk-down);border-top-style:dashed"></i>sem link</span><span><i style="border-color:var(--lk-blk);border-top-style:dotted"></i>STP bloqueado</span><span><i style="border-color:var(--lk-blk);border-top-width:5px"></i>com perda</span><span><i style="border-color:var(--lk-storm);border-top-width:5px"></i>tempestade</span></span></div>
+      <svg id="svg" viewBox="0 0 760 470" role="img" aria-label="Topologia: internet, FortiGate, core, switches de andar, servidores e equipamentos"></svg>
+    </section>
+  </div>
+  <div class="col">
+    <div class="console">
+      <div class="abas" id="abas" role="tablist"></div>
+      <div class="tela" id="tela" role="log" aria-live="polite"></div>
+      <form class="linha" id="form"><label for="cmd" id="prompt"></label><input id="cmd" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="send" placeholder="digite um comando (ajuda)"></form>
+      <div class="chips" id="chips"></div>
+    </div>
+    <div class="acoes">
+      <button class="btn" id="bFechar" type="button">Encerrar chamado</button>
+      <button class="btn sec" id="bDica" type="button">Pedir dica</button>
+      <button class="btn perigo" id="bDesistir" type="button">Ver solução</button>
+      <label class="tg2"><input type="checkbox" id="cTutor" checked> notas do tutor</label>
+    </div>
+    <div class="dicas" id="dicas"></div>
+    <section class="card deb" id="deb" hidden></section>
+  </div>
+</main>
+
+<div class="ov" id="ovInicio">
+  <div class="card">
+    <h2>Plantão de Redes</h2>
+    <p>Você está de plantão na rede do hospital. Cada chamado é um defeito <b>de verdade</b> numa rede que funciona: o ping é calculado salto a salto, o STP escolhe as portas, o LACP negocia, o FortiGate aplica rota, política e NAT.</p>
+    <ol>
+      <li>Leia o chamado e a documentação.</li>
+      <li>Investigue nos consoles (troque de equipamento nas abas ou clicando no mapa). Digite <code>ajuda</code> em qualquer um.</li>
+      <li>Corrija, prove que voltou e clique em <b>Encerrar chamado</b>. Se algo continuar quebrado na rede, o usuário reabre.</li>
+    </ol>
+    <div class="modos">
+      <label><input type="radio" name="modo" value="plantao" checked> <b>Plantão</b><small>Defeitos aleatórios, SLA correndo, 3 vidas. Fica mais difícil a cada 3 chamados.</small></label>
+      <label><input type="radio" name="modo" value="treino"> <b>Treino</b><small>Escolha o tipo de defeito. Sem SLA, sem perder vida.</small></label>
+    </div>
+    <select id="selDef" hidden></select>
+    <div class="acoes"><button class="btn" id="bJogar" type="button">Começar plantão</button><span class="rodape">Recorde: <b id="iRec">0</b> pts</span></div>
+    <p class="rodape">Atalhos: <b>P</b> ou <b>Esc</b> pausa · <b>↑ ↓</b> histórico de comandos · versão anterior com 9 chamados roteirizados: <a href="v1/">Plantão v1</a></p>
+  </div>
+</div>
+<div class="ov" id="ovPausa" hidden><div class="card"><h2>Pausado</h2><p>O SLA está parado. Respire, releia o chamado e volte.</p><div class="acoes"><button class="btn" id="bVoltar" type="button">Continuar</button><button class="btn sec" id="bSair" type="button">Encerrar plantão</button></div></div></div>
+<div class="ov" id="ovFim" hidden><div class="card"><h2>Fim do plantão</h2><div class="grande" id="fPts">0</div><p id="fTxt"></p><div class="acoes"><button class="btn" id="bDeNovo" type="button">Jogar de novo</button></div></div></div>
+<div class="toast" id="toast" hidden></div>
+
+<script src="motor.js"></script>
+<script src="cli.js"></script>
+<script>
+'use strict';
+const $=id=>document.getElementById(id);
+const SLA={P1:360,P2:600,P3:900},BASE={P1:300,P2:200,P3:150},PRI_TXT={P1:'P1 · crítica',P2:'P2 · alta',P3:'P3 · média'};
+const POS={NET:[380,36],FGT:[380,116],CORE:[380,206],DNS:[160,150],PACS:[600,150],SW1A:[170,305],SW3A:[590,305],RECEP:[80,425],FAT:[262,425],TOMO:[498,425],LAUDO:[680,425]};
+const ABAS=['RECEP','FAT','LAUDO','TOMO','SW1A','SW3A','CORE','FGT','DNS','PACS'];
+const TAG={pc:'PC',srv:'SRV',med:'MED',sw:'L2',l3:'L3',fw:'FW',net:'WAN'};
+const G={modo:'plantao',forcar:null,n:0,pts:0,vidas:3,resolvidos:0,rec:0,pausado:false,ativo:false,som:true,tutor:true,portas:false,
+  st:null,ch:null,sla:0,slaMax:1,estourou:false,dicas:0,reab:0,resolvido:false,dev:'RECEP',log:{},hist:{},hp:{},recentes:[],anim:null,fx:[],aberto:0};
+const ls={get(k,d){try{const v=localStorage.getItem('plantao-redes-'+k);return v===null?d:JSON.parse(v)}catch(e){return d}},set(k,v){try{localStorage.setItem('plantao-redes-'+k,JSON.stringify(v))}catch(e){}}};
+G.rec=ls.get('recorde',0);G.som=ls.get('som',true);G.tutor=ls.get('tutor',true);G.portas=ls.get('portas',false);
+const esc=t=>String(t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+/* ---------- som (bipes gerados) ---------- */
+let AC=null;
+function bip(tipo){if(!G.som)return;try{AC=AC||new (window.AudioContext||window.webkitAudioContext)();const seq={novo:[[660,.09],[880,.12]],ok:[[523,.1],[659,.1],[784,.18]],erro:[[220,.22]],alerta:[[880,.08],[0,.06],[880,.08]],cmd:[[1200,.015]]}[tipo];let t=AC.currentTime;
+  for(const[f,d]of seq){if(f){const o=AC.createOscillator(),g=AC.createGain();o.type=tipo==='erro'?'sawtooth':'sine';o.frequency.value=f;g.gain.setValueAtTime(tipo==='cmd'?.02:.08,t);g.gain.exponentialRampToValueAtTime(.0001,t+d);o.connect(g).connect(AC.destination);o.start(t);o.stop(t+d)}t+=d}}catch(e){}}
+
+/* ---------- início ---------- */
+function montarInicio(){$('iRec').textContent=G.rec;const sel=$('selDef');const niv={1:'Nível 1',2:'Nível 2',3:'Nível 3'};
+  sel.innerHTML=[1,2,3].map(n=>`<optgroup label="${niv[n]}">${Motor.DEFEITOS.filter(f=>f.nivel===n).map(f=>`<option value="${f.id}">${f.area}</option>`).join('')}</optgroup>`).join('');
+  document.querySelectorAll('input[name=modo]').forEach(r=>r.onchange=()=>{const t=r.value==='treino'&&r.checked;sel.hidden=!t;$('bJogar').textContent=t?'Começar treino':'Começar plantão'})}
+function comecar(){const m=document.querySelector('input[name=modo]:checked').value;Object.assign(G,{modo:m,forcar:m==='treino'?$('selDef').value:null,n:0,pts:0,vidas:3,resolvidos:0,recentes:[],ativo:true,pausado:false});
+  $('ovInicio').hidden=true;$('ovFim').hidden=true;proximo()}
+
+/* ---------- chamado ---------- */
+function proximo(){G.n++;const seed=((Date.now()>>>0)^Math.imul(G.n,2654435761))>>>0;
+  const r=Motor.novoChamado(G.n,seed,{forcar:G.forcar,evitar:G.recentes.slice(-4)});G.st=r.st;G.ch=r.ch;r.ch.defeitos.forEach(x=>G.recentes.push(x.f.id));
+  Object.assign(G,{slaMax:SLA[G.ch.pri],sla:SLA[G.ch.pri],estourou:false,dicas:0,reab:0,resolvido:false,log:{},hist:{},hp:{},anim:null,fx:[],aberto:performance.now()});
+  const eq=G.ch.defeitos[0].ticket.equip;G.dev=ABAS.find(id=>eq.includes(G.st.devs[id].nome))||'RECEP';
+  for(const id of ABAS)G.log[id]=[['sys',boasVindas(id)]];
+  $('dicas').innerHTML='';$('deb').hidden=true;$('bFechar').disabled=false;$('bDica').disabled=false;$('bDesistir').disabled=false;
+  $('bDesistir').textContent=G.modo==='plantao'?'Ver solução (perde 1 vida)':'Ver solução';
+  ticket();abas();tela();mapa();hud();atualizaDica();bip('novo');window.scrollTo({top:0,behavior:'smooth'})}
+function boasVindas(id){const d=G.st.devs[id];
+  if(d.tipo==='pc')return'Microsoft Windows [versão 10.0.22631.4317]\n(c) Microsoft Corporation. Todos os direitos reservados.\n(acesso remoto pelo suporte)';
+  if(d.tipo==='srv')return'Microsoft Windows Server 2022 [versão 10.0.20348]\n(sessão RDP como Administrador)';
+  if(d.tipo==='med')return'Painel de serviço do fabricante · menu de rede. Digite ajuda.';
+  if(id==='CORE')return'Conectado via SSH a CORE-01 (10.10.0.2).';
+  if(d.tipo==='sw')return`Conectado pelo cabo de console (azul) ao ${d.nome} no rack do andar.`;
+  return'Conectado via SSH a FGT-HVC (10.10.0.1).'}
+function ticket(){const ch=G.ch,t0=ch.defeitos[0].ticket;const hora=new Date();hora.setMinutes(hora.getMinutes()-3);
+  let h=`<div class="cab"><span>${esc(ch.num)}</span><span class="pri ${ch.pri}">${PRI_TXT[ch.pri]}</span><span>${G.modo==='treino'?'treino · '+esc(ch.defeitos[0].f.area):'nível '+ch.nivel}</span></div>
+  <h1>${esc(t0.titulo)}</h1><p>${esc(t0.desc)}</p>
+  <div class="meta"><div><b>Solicitante</b>${esc(t0.solicitante)}</div><div><b>Equipamento citado</b>${esc(t0.equip)}</div><div><b>Aberto às</b>${hora.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</div></div>`;
+  ch.defeitos.slice(1).forEach(x=>{h+=`<div class="vinc"><b>Chamado vinculado (${x.ticket.pri}):</b> ${esc(x.ticket.titulo)}. ${esc(x.ticket.desc)}</div>`});
+  h+=`<details class="doc"><summary>Documentação da rede</summary>
+  <table><tr><th>VLAN</th><th>Nome</th><th>Rede</th><th>Gateway</th><th>Onde</th></tr>
+  <tr><td>10</td><td>ADMINISTRATIVO</td><td>10.10.10.0/24</td><td>10.10.10.1</td><td>PC-FAT02 (SW-1A Gi1/0/6)</td></tr>
+  <tr><td>20</td><td>RECEPCAO</td><td>10.10.20.0/24</td><td>10.10.20.1</td><td>PC-RECEP01 (SW-1A Gi1/0/5)</td></tr>
+  <tr><td>30</td><td>IMAGEM</td><td>10.10.30.0/24</td><td>10.10.30.1</td><td>TOMO-01 fixo .50 (SW-3A Gi1/0/5), PC-LAUDO03 (Gi1/0/6)</td></tr>
+  <tr><td>99</td><td>QUARENTENA</td><td>sem rede</td><td>–</td><td>pontos sem uso</td></tr>
+  <tr><td>100</td><td>SERVIDORES</td><td>10.10.1.0/24</td><td>10.10.1.1</td><td>SRV-DNS .10, SRV-PACS .20 (CORE-01 Gi1/0/10-11)</td></tr></table>
+  <ul><li><b>CORE-01</b> (camada 3): gateway das VLANs, servidor DHCP, rota padrão para o FortiGate 10.10.0.1 pela Gi1/0/1. Raiz do STP.</li>
+  <li><b>SW-1A</b> (1º andar): Po1 com LACP (Gi1/0/49-50 ↔ CORE-01 Gi1/0/2-3). <b>SW-3A</b> (3º andar): Gi1/0/49 ↔ CORE-01 Gi1/0/4. Link de backup SW-1A Gi1/0/48 ↔ SW-3A Gi1/0/50 (bloqueado pelo STP em operação normal).</li>
+  <li><b>FGT-HVC</b>: port2 10.10.0.1/30 (LAN), port1 200.160.2.2/30 (WAN, operadora 200.160.2.1). Política 1 LAN→Internet com NAT. Rota 10.10.0.0/16 via core.</li>
+  <li>DNS interno 10.10.1.10 (zona hvc.local, ex.: pacs.hvc.local). PACS: DICOM TCP 104 e web HTTPS 443.</li>
+  <li>Padrões: portas de usuário em access + portfast + bpduguard; trunks com VLANs 10,20,30; tudo em speed/duplex auto; LACP active.</li></ul></details>`;
+  $('ticket').innerHTML=h}
+
+/* ---------- console ---------- */
+function abas(){$('abas').innerHTML=ABAS.map(id=>{const d=G.st.devs[id];return`<button type="button" role="tab" data-d="${id}" aria-pressed="${id===G.dev}">${d.nome}<small>${TAG[d.tipo]}${d.naoSalvo?' · não salvo':''}</small></button>`}).join('');
+  $('abas').querySelectorAll('button').forEach(b=>b.onclick=()=>selecionar(b.dataset.d));const at=$('abas').querySelector('[aria-pressed=true]');if(at)at.scrollIntoView({block:'nearest',inline:'nearest'})}
+function selecionar(id){if(!G.st.devs[id]||id==='NET')return;G.dev=id;abas();tela();mapa();$('cmd').focus({preventScroll:true})}
+function tela(){const id=G.dev;const linhas=G.log[id]||[];
+  $('tela').innerHTML=linhas.filter(([k])=>G.tutor||k!=='note').map(([k,t])=>k==='cmd'?`<div><span class="pr">${esc(t[0])}</span> ${esc(t[1])}</div>`:`<div class="${k}">${esc(t)||' '}</div>`).join('');
+  $('tela').scrollTop=$('tela').scrollHeight;$('prompt').textContent=CLI.prompt(G.st,id);
+  $('chips').innerHTML='<span>atalhos:</span>'+CLI.atalhos(G.st,id).map(a=>`<button type="button">${esc(a)}</button>`).join('');
+  $('chips').querySelectorAll('button').forEach(b=>b.onclick=()=>{$('cmd').value=b.textContent;$('cmd').focus()})}
+function enviar(v){if(!G.ativo||G.pausado||!G.st)return;const id=G.dev;G.st.relogio=Math.round((performance.now()-G.aberto)/1000)+420;
+  const r=CLI.executar(G.st,id,v);(G.hist[id]=G.hist[id]||[]).push(v);G.hp[id]=G.hist[id].length;
+  if(r.limpar)G.log[id]=[];else{G.log[id].push(...r.linhas);if(G.log[id].length>600)G.log[id]=G.log[id].slice(-600)}
+  tela();if(r.mudou)abas();mapa();if(r.anim&&r.anim.trilha&&r.anim.trilha.length)animar(r.anim);bip('cmd')}
+
+/* ---------- mapa ao vivo ---------- */
+function estadoLink(ix){const st=G.st,L=st.l2,lk=L.link[ix],l=st.links[ix];if(!lk.up)return'down';if(lk.lacp&&!lk.lacp.compat)return'susp';
+  const epSt=[l.a,l.b].some(([d])=>Motor.ehEp(st.devs[d])&&L.stormSeg.has(L.seg.get('E:'+d)));
+  if(l.patch||[...lk.fwd].some(v=>L.stormVlan.has(v))||epSt)return'storm';if(lk.lossy)return'perda';if(lk.blk.size&&!lk.fwd.size)return'blk';if(!lk.uso)return'inativo';return'ok'}
+function subtitulo(id){const st=G.st,d=st.devs[id];
+  if(Motor.ehEp(d)){const c=Motor.cfgIP(st,d);if(!c.up)return['sem link',true];if(c.apipa)return[c.ip,true];return[c.ip,false]}
+  if(d.tipo==='net')return['8.8.8.8',false];if(d.tipo==='fw')return['10.10.0.1',false];if(d.tipo==='l3')return['10.10.0.2',false];return[d.id==='SW1A'?'1º andar':'3º andar',false]}
+function mapa(){const st=G.st;if(!st)return;const L=st.l2;let s='';
+  st.links.forEach((l,ix)=>{const a=l.a[0],b=l.b[0],cl=estadoLink(ix);
+    if(a===b){const[x,y]=POS[a];s+=`<path class="lk ${cl}" d="M${x+46} ${y+8} C ${x+130} ${y+14}, ${x+128} ${y+82}, ${x+28} ${y+17}"><title>Patch: ${l.a[1]} ↔ ${l.b[1]}</title></path>`;if(G.portas)s+=`<text class="lbl" x="${x+92}" y="${y+66}">7↔8</text>`;return}
+    let[x1,y1]=POS[a],[x2,y2]=POS[b];const par=st.links.filter(k=>(k.a[0]===a&&k.b[0]===b)||(k.a[0]===b&&k.b[0]===a));
+    if(par.length>1){const k=par.indexOf(l)-(par.length-1)/2;const dx=x2-x1,dy=y2-y1,len=Math.hypot(dx,dy);const ox=-dy/len*8*k,oy=dx/len*8*k;x1+=ox;y1+=oy;x2+=ox;y2+=oy}
+    s+=`<line class="lk ${cl}" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"><title>${st.devs[a].nome} ${l.a[1]} ↔ ${st.devs[b].nome} ${l.b[1]}</title></line>`;
+    if(G.portas){const t=(f,txt)=>`<text class="lbl" x="${(x1+(x2-x1)*f+4).toFixed(0)}" y="${(y1+(y2-y1)*f-3).toFixed(0)}">${esc(txt.replace('Gi1/0/','g'))}</text>`;if(l.a[1]!=='nic'&&l.a[1]!=='wan')s+=t(.24,l.a[1]);if(l.b[1]!=='nic'&&l.b[1]!=='wan')s+=t(.7,l.b[1])}
+    if(cl==='blk'){const lk=L.link[ix];const lp=[...Object.entries(L.stp)].map(([v,r])=>Object.entries(r.papel).find(([k,p])=>p.s==='BLK'&&(k===a+'|'+l.a[1]||k===b+'|'+l.b[1])&&lk.blk.has(+v))).find(Boolean);
+      const f=lp&&lp[0].startsWith(b+'|')?.78:.22;s+=`<text class="lbl forte" x="${x1+(x2-x1)*f-10}" y="${y1+(y2-y1)*f-6}">BLK</text>`}});
+  const poA=POS.CORE,poB=POS.SW1A;s+=`<text class="lbl" x="${(poA[0]+poB[0])/2+8}" y="${(poA[1]+poB[1])/2+18}">Po1</text>`;
+  for(const id of Object.keys(POS)){const d=st.devs[id];const[x,y]=POS[id];const w=Motor.ehEp(d)?132:124,h=40;const[sub,bad]=subtitulo(id);
+    s+=`<g class="nd ${id===G.dev?'sel':''} ${d.tipo==='net'?'net':''}" data-d="${id}" transform="translate(${x-w/2},${y-h/2})" tabindex="${id==='NET'?-1:0}" role="button" aria-label="${d.nome}">
+      <rect width="${w}" height="${h}" rx="9"/><rect class="tgb" x="6" y="7" width="26" height="15" rx="4"/><text class="tg" x="19" y="18" text-anchor="middle">${TAG[d.tipo]}</text>
+      <text class="nm" x="38" y="18">${d.nome}</text><text class="sb ${bad?'bad':''}" x="38" y="32">${esc(sub)}</text></g>`}
+  s+='<g id="fx"></g><circle id="pkt" r="0" cx="-20" cy="-20"/><g id="xg"></g>';
+  $('svg').innerHTML=s;$('svg').querySelectorAll('.nd').forEach(g=>{g.onclick=()=>selecionar(g.dataset.d);g.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();selecionar(g.dataset.d)}}})}
+function animar(a){const pts=a.trilha.filter(id=>POS[id]).map(id=>POS[id].slice());if(!pts.length)return;if(pts.length===1)pts.push(pts[0].slice());G.anim={pts,ok:a.ok,i:0,t:0,fim:0}}
+function passoAnim(dt){const A=G.anim;const c=$('pkt'),xg=$('xg');if(!A||!c)return;
+  if(A.fim>0){A.fim-=dt;if(A.fim<=0){c.setAttribute('r',0);xg.innerHTML='';G.anim=null}else xg.style.opacity=Math.min(1,A.fim);return}
+  const[x1,y1]=A.pts[A.i],[x2,y2]=A.pts[A.i+1]||A.pts[A.i];const len=Math.max(1,Math.hypot(x2-x1,y2-y1));A.t+=dt*420/len;
+  if(A.t>=1){A.i++;A.t=0;if(A.i>=A.pts.length-1){const[x,y]=A.pts[A.pts.length-1];c.setAttribute('cx',x);c.setAttribute('cy',y);
+    if(A.ok){c.setAttribute('r',0);burst(x,y,'var(--lk-ok)',10)}else{c.setAttribute('r',0);xg.innerHTML=`<line class="xis" x1="${x-9}" y1="${y-9}" x2="${x+9}" y2="${y+9}"/><line class="xis" x1="${x+9}" y1="${y-9}" x2="${x-9}" y2="${y+9}"/>`;xg.style.opacity=1}A.fim=1.4;return}}
+  const[a1,b1]=A.pts[A.i],[a2,b2]=A.pts[A.i+1];c.setAttribute('r',6);c.setAttribute('cx',a1+(a2-a1)*A.t);c.setAttribute('cy',b1+(b2-b1)*A.t)}
+function burst(x,y,cor,n){for(let i=0;i<n;i++){const a=Math.random()*Math.PI*2,v=60+Math.random()*90;G.fx.push({x,y,vx:Math.cos(a)*v,vy:Math.sin(a)*v,v:1,cor})}}
+function passoFx(dt){const g=$('fx');if(!g)return;if(!G.fx.length){if(g.childElementCount)g.innerHTML='';return}
+  G.fx.forEach(p=>{p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy+=140*dt;p.v-=dt*1.3});G.fx=G.fx.filter(p=>p.v>0);
+  g.innerHTML=G.fx.map(p=>`<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${(2+3*p.v).toFixed(1)}" fill="${p.cor}" opacity="${p.v.toFixed(2)}"/>`).join('')}
+
+/* ---------- HUD, SLA, dicas ---------- */
+const mmss=s=>{s=Math.max(0,Math.ceil(s));return String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0')};
+function hud(){$('hN').textContent=G.n||'–';$('hNiv').textContent=G.ch?G.ch.nivel:'–';$('hPts').textContent=G.pts;$('hRec').textContent=G.rec;
+  $('hVidas').style.color=G.modo==='treino'?'var(--mute)':'';$('hVidas').textContent=G.modo==='treino'?'treino':'♥'.repeat(G.vidas)+'♡'.repeat(3-G.vidas);
+  if(G.modo==='treino'||!G.ch){$('slaTxt').textContent='sem SLA';$('slaBar').style.width='0%';return}
+  $('slaBar').style.width=(G.sla/G.slaMax*100)+'%';$('slaTxt').textContent=G.estourou?'SLA estourado':'SLA '+mmss(G.sla);$('sla').classList.toggle('alerta',G.sla<60||G.estourou)}
+function todasDicas(){return G.ch.defeitos.flatMap(x=>x.f.dicas(x.ctx))}
+function atualizaDica(){const n=todasDicas().length,r=n-G.dicas;$('bDica').textContent=r>0?`Pedir dica (${r}) · −40`:'Sem mais dicas';$('bDica').disabled=r<=0||G.resolvido}
+function dica(){const ds=todasDicas();if(G.dicas>=ds.length||G.resolvido)return;const t=ds[G.dicas];G.dicas++;$('dicas').insertAdjacentHTML('beforeend',`<div class="dica"><b>DICA ${G.dicas}</b>${t}</div>`);atualizaDica()}
+function toast(titulo,itens,ok){const t=$('toast');t.className='toast'+(ok?' ok':'');t.innerHTML=`<b>${esc(titulo)}</b>${itens&&itens.length?'<ul>'+itens.map(i=>`<li>${esc(i)}</li>`).join('')+'</ul>':''}`;t.hidden=false;clearTimeout(toast.t);toast.t=setTimeout(()=>t.hidden=true,ok?2500:6000)}
+function tremer(){const e=$('ticket');e.classList.remove('treme');void e.offsetWidth;e.classList.add('treme')}
+
+/* ---------- encerrar / solução ---------- */
+function encerrar(){if(!G.ativo||G.resolvido||G.pausado)return;const fal=Motor.validar(G.st,G.ch);
+  if(fal.length){G.reab++;G.pts=Math.max(0,G.pts-50);hud();tremer();bip('erro');toast(`Chamado reaberto (−50). Ainda falha${fal.length>1?'m':''}:`,fal.slice(0,3).concat(fal.length>3?[`… e mais ${fal.length-3} teste(s)`]:[]));return}
+  const naoSalvo=Object.values(G.st.devs).filter(d=>d.naoSalvo).map(d=>d.nome);
+  const base=Math.round(BASE[G.ch.pri]*(1+.25*(G.ch.nivel-1))*G.ch.defeitos.length);
+  const tempo=G.modo==='plantao'&&!G.estourou?Math.round(150*G.sla/G.slaMax):0;const pD=G.dicas*40,pS=naoSalvo.length*30;
+  const total=Math.max(20,base+tempo-pD-pS);G.pts+=total;G.resolvidos++;G.resolvido=true;
+  if(G.pts>G.rec){G.rec=G.pts;ls.set('recorde',G.rec)}
+  const est=G.dicas===0&&G.reab===0?3:G.dicas+G.reab<=2?2:1;
+  $('toast').hidden=true;debrief(true,{base,tempo,pD,pS,total,est,naoSalvo});bip('ok');const p=POS[G.ch.defeitos[0].ctx.sw||'CORE']||POS.CORE;burst(p[0],p[1],'var(--accent)',26);hud()}
+function desistir(){if(!G.ativo||G.resolvido)return;G.resolvido=true;if(G.modo==='plantao'){G.vidas--;bip('erro')}debrief(false,{});hud();if(G.modo==='plantao'&&G.vidas<=0)setTimeout(fimDeJogo,600)}
+function debrief(ok,p){const d=$('deb');const ch=G.ch;const tempo=mmss((performance.now()-G.aberto)/1000);
+  let h=ok?`<h2>Chamado resolvido em ${tempo}</h2><div class="estrelas" aria-label="${p.est} de 3 estrelas">${'★'.repeat(p.est)}${'☆'.repeat(3-p.est)}</div>`:`<h2 style="color:var(--p2)">Solução do chamado</h2>`;
+  ch.defeitos.forEach((x,i)=>{h+=`<h3>${ch.defeitos.length>1?`Defeito ${i+1} · `:''}${esc(x.f.area)}</h3><p>${esc(x.f.causa(x.ctx))}</p><h3>Correção</h3><ul>${x.f.correcao(x.ctx).map(c=>`<li><code>${esc(c)}</code></li>`).join('')}</ul><h3>O que um analista pleno leva disso</h3><p class="fala">${esc(x.f.licao)}</p>`});
+  if(ok){h+=`<p class="pts">Base ${p.base} + tempo ${p.tempo} − dicas ${p.pD}${p.pS?` − não salvo ${p.pS}`:''}${G.reab?` (reaberturas já descontadas: ${G.reab}×50)`:''} = <b>${p.total} pts</b></p>`;
+    if(p.naoSalvo.length)h+=`<p class="aviso">Você não deu <code>write memory</code> em: ${esc(p.naoSalvo.join(', '))}. Se o equipamento reiniciar, a correção some e o chamado volta.</p>`}
+  else if(G.modo==='plantao')h+=`<p class="aviso">Ver a solução custou 1 vida. Refaça este tipo de defeito no modo Treino até resolver sem dica.</p>`;
+  h+=`<div class="acoes"><button class="btn" id="bProx" type="button">${G.modo==='plantao'&&G.vidas<=0?'Ver resultado':'Próximo chamado'}</button></div>`;
+  d.innerHTML=h;d.hidden=false;$('bFechar').disabled=true;$('bDica').disabled=true;$('bDesistir').disabled=true;
+  $('bProx').onclick=()=>{if(G.modo==='plantao'&&G.vidas<=0)return fimDeJogo();proximo()};setTimeout(()=>d.scrollIntoView({behavior:'smooth',block:'start'}),250)}
+function fimDeJogo(){G.ativo=false;$('fPts').textContent=G.pts+' pts';$('fTxt').innerHTML=`${G.resolvidos} chamado(s) resolvido(s) · recorde ${G.rec} pts.<br>Dica: no modo Treino você repete um tipo de defeito até sair sem dica.`;$('ovFim').hidden=false}
+
+/* ---------- pausa e laço principal ---------- */
+function pausar(v){if(!G.ativo)return;G.pausado=v;$('ovPausa').hidden=!v;$('bPausa').textContent=v?'Continuar':'Pausar';if(!v)$('cmd').focus({preventScroll:true})}
+let ult=performance.now();
+function laco(t){const dt=Math.min(.1,(t-ult)/1000);ult=t;
+  if(G.ativo&&!G.pausado&&!G.resolvido&&G.modo==='plantao'&&G.ch){const antes=G.sla;G.sla-=dt;
+    if(antes>60&&G.sla<=60)bip('alerta');
+    if(G.sla<=0&&!G.estourou){G.estourou=true;G.vidas--;tremer();bip('erro');toast('SLA estourado: −1 vida. Termine o chamado mesmo assim.');if(G.vidas<=0){G.resolvido=true;setTimeout(()=>{debrief(false,{});fimDeJogo()},400)}}
+    hud()}
+  if(!G.pausado){passoAnim(dt);passoFx(dt)}requestAnimationFrame(laco)}
+
+/* ---------- eventos ---------- */
+$('form').onsubmit=e=>{e.preventDefault();const v=$('cmd').value;$('cmd').value='';enviar(v)};
+$('cmd').addEventListener('keydown',e=>{const id=G.dev,h=G.hist[id]||[];
+  if(e.key==='ArrowUp'&&G.hp[id]>0){G.hp[id]--;$('cmd').value=h[G.hp[id]];e.preventDefault()}
+  if(e.key==='ArrowDown'){G.hp[id]=Math.min(h.length,(G.hp[id]||0)+1);$('cmd').value=h[G.hp[id]]||'';e.preventDefault()}});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&G.ativo){pausar(!G.pausado);return}
+  if((e.key==='p'||e.key==='P')&&document.activeElement!==$('cmd')&&G.ativo)pausar(!G.pausado)});
+$('bPausa').onclick=()=>pausar(!G.pausado);$('bVoltar').onclick=()=>pausar(false);
+$('bSair').onclick=()=>{G.pausado=false;$('ovPausa').hidden=true;G.resolvido=true;fimDeJogo()};
+$('bSom').onclick=()=>{G.som=!G.som;ls.set('som',G.som);$('bSom').textContent='Som: '+(G.som?'on':'off')};
+$('cTutor').onchange=e=>{G.tutor=e.target.checked;ls.set('tutor',G.tutor);tela()};
+$('cPortas').onchange=e=>{G.portas=e.target.checked;ls.set('portas',G.portas);mapa()};
+$('bDica').onclick=dica;$('bFechar').onclick=encerrar;$('bDesistir').onclick=desistir;
+$('bJogar').onclick=comecar;$('bDeNovo').onclick=()=>{$('ovFim').hidden=true;$('ovInicio').hidden=false;montarInicio()};
+document.addEventListener('visibilitychange',()=>{if(document.hidden&&G.ativo&&!G.pausado&&G.modo==='plantao')pausar(true)});
+
+$('bSom').textContent='Som: '+(G.som?'on':'off');$('cTutor').checked=G.tutor;$('cPortas').checked=G.portas;
+montarInicio();
+/* fundo: rede limpa desenhada atrás da tela inicial */
+G.st=Motor.criarRede();mapa();$('ticket').innerHTML='<h1>Plantão de Redes</h1><p>Clique em Começar para receber o primeiro chamado.</p>';
+requestAnimationFrame(laco);
+</script>
+</body>
+</html>

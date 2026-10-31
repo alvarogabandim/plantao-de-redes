@@ -1,0 +1,562 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Plantão de Redes</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..100,600;75..100,800&family=IBM+Plex+Sans:wght@400;600&family=IBM+Plex+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: fila de chamados à esquerda (vira faixa no celular) + mesa de trabalho: chamado → topologia → console multi-equipamento → debriefing */
+:root{
+  --bg:#eef1f0; --panel:#ffffff; --ink:#15201f; --mute:#5d6b69; --line:#d6dedc;
+  --accent:#0e7c6b; --accent-ink:#ffffff; --accent-soft:#dcefeb;
+  --term:#0f1a1c; --term-ink:#d7e6e3; --term-dim:#7f9995; --term-note:#f2c46d; --term-ok:#7fd8a6; --term-bad:#ff8f80; --term-pr:#6fd3c4;
+  --p1:#b42318; --p1s:#fde7e4; --p2:#b45309; --p2s:#fdf0dc; --p3:#3b6fb0; --p3s:#e3ecf8;
+  --ok:#1f7a45; --oks:#e0f2e8;
+  --display:"Archivo","Arial Narrow",system-ui,sans-serif;
+  --body:"IBM Plex Sans","Segoe UI",system-ui,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#111817; --panel:#18211f; --ink:#e3ebe9; --mute:#9aaba8; --line:#2c3836;
+  --accent:#3cc2ab; --accent-ink:#06201b; --accent-soft:#16332e;
+  --term:#0a1112; --p1:#ff8f80; --p1s:#3a1c18; --p2:#f0b35e; --p2s:#35270f; --p3:#8db7ef; --p3s:#1a2738;
+  --ok:#7fd8a6; --oks:#163323; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#111817; --panel:#18211f; --ink:#e3ebe9; --mute:#9aaba8; --line:#2c3836;
+  --accent:#3cc2ab; --accent-ink:#06201b; --accent-soft:#16332e;
+  --term:#0a1112; --p1:#ff8f80; --p1s:#3a1c18; --p2:#f0b35e; --p2s:#35270f; --p3:#8db7ef; --p3s:#1a2738;
+  --ok:#7fd8a6; --oks:#163323; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font:16px/1.55 var(--body);margin:0}
+button,input{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+.app{display:grid;grid-template-columns:280px minmax(0,1fr);min-height:100vh}
+.fila{border-right:1px solid var(--line);background:var(--panel);padding-block:20px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:16px;display:flex;flex-direction:column;gap:14px;position:sticky;top:0;height:100vh;overflow-y:auto}
+.marca b{display:block;font:800 1.7rem/1 var(--display);font-stretch:80%;letter-spacing:-.01em}
+.marca span{font-size:.85rem;color:var(--mute)}
+.prog{font:600 .8rem var(--mono);color:var(--mute)}
+.prog i{display:block;height:6px;border-radius:9px;background:var(--line);margin-top:6px;overflow:hidden}
+.prog i em{display:block;height:100%;background:var(--accent);transition:width .4s}
+.lista{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.lista button{width:100%;text-align:left;background:none;border:1px solid transparent;border-radius:10px;padding:9px 10px;cursor:pointer;display:grid;gap:3px}
+.lista button:hover{background:var(--bg)}
+.lista button[aria-current="true"]{border-color:var(--accent);background:var(--accent-soft)}
+.lista .l1{display:flex;gap:8px;align-items:center;font:600 .72rem var(--mono);color:var(--mute)}
+.lista .l2{font-weight:600;font-size:.93rem;line-height:1.3}
+.lista .ok{margin-left:auto;color:var(--ok)}
+.pri{padding:1px 7px;border-radius:99px;font:600 .7rem var(--mono)}
+.pri.P1{background:var(--p1s);color:var(--p1)} .pri.P2{background:var(--p2s);color:var(--p2)} .pri.P3{background:var(--p3s);color:var(--p3)}
+.tag{font:600 .7rem var(--mono);color:var(--accent)}
+main{padding-block:24px 70px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));min-width:0}
+.mesa{max-width:900px;margin:0 auto;display:grid;gap:18px}
+.chamado{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px 20px;display:grid;gap:10px}
+.cab{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;font:600 .78rem var(--mono);color:var(--mute)}
+h1{font:800 clamp(1.5rem,3.6vw,2.2rem)/1.1 var(--display);font-stretch:85%;margin:0;text-wrap:balance}
+.desc{margin:0;max-width:68ch}
+.meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px 16px;font-size:.9rem}
+.meta div{min-width:0} .meta b{display:block;font:600 .7rem var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--mute)}
+.topo{background:var(--bg);border-radius:10px;padding:12px 14px;font:400 .8rem/1.5 var(--mono);overflow-x:auto;white-space:pre;margin:0}
+.obj{background:var(--accent-soft);border-radius:10px;padding:10px 14px;font-size:.93rem}
+.obj b{color:var(--accent)}
+.console{background:var(--term);border-radius:14px;overflow:hidden;display:grid;color:var(--term-ink)}
+.abas{display:flex;flex-wrap:wrap;gap:4px;padding:8px 8px 0;background:#ffffff0a}
+.abas button{background:none;border:0;border-radius:8px 8px 0 0;padding:7px 12px;cursor:pointer;color:var(--term-dim);font:600 .82rem var(--mono)}
+.abas button[aria-pressed="true"]{background:var(--term);color:var(--term-ink)}
+.abas small{display:block;font-weight:400;font-size:.68rem}
+.tela{height:340px;overflow-y:auto;padding:12px 14px;font:400 .84rem/1.5 var(--mono);white-space:pre-wrap;overflow-wrap:anywhere}
+.tela .cmd{color:var(--term-ink)} .tela .pr{color:var(--term-pr)}
+.tela .out{color:#c3d3d0} .tela .note{color:var(--term-note)} .tela .sys{color:var(--term-dim);font-style:italic}
+.tela .good{color:var(--term-ok)} .tela .bad{color:var(--term-bad)}
+.linha{display:flex;gap:8px;align-items:center;padding:8px 14px;border-top:1px solid #ffffff14}
+.linha label{font:600 .84rem var(--mono);color:var(--term-pr);white-space:nowrap;max-width:45%;overflow:hidden;text-overflow:ellipsis}
+.linha input{flex:1;min-width:0;background:transparent;border:0;outline:0;font:400 .9rem var(--mono);color:var(--term-ink);padding:6px 0}
+.chips{display:flex;flex-wrap:wrap;gap:6px;padding:0 14px 12px}
+.chips button{background:#ffffff12;border:1px solid #ffffff1f;color:var(--term-ink);border-radius:7px;padding:4px 9px;font:400 .76rem var(--mono);cursor:pointer}
+.chips button:hover{border-color:var(--term-pr)}
+.chips span{font:600 .7rem var(--mono);color:var(--term-dim);align-self:center}
+.acoes{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.btn{border:0;border-radius:9px;padding:9px 16px;font-weight:600;cursor:pointer;background:var(--accent);color:var(--accent-ink)}
+.btn.sec{background:transparent;border:1.5px solid var(--line);color:var(--ink)}
+.btn[disabled]{opacity:.45;cursor:default}
+.dicas{display:grid;gap:8px}
+.dica{background:var(--p2s);border-radius:10px;padding:10px 14px;font-size:.93rem}
+.dica b{color:var(--p2);font:600 .74rem var(--mono);display:block}
+.debrief{background:var(--panel);border:2px solid var(--ok);border-radius:14px;padding:18px 20px;display:grid;gap:12px}
+.debrief h2{margin:0;font:800 1.4rem var(--display);font-stretch:85%;color:var(--ok)}
+.debrief h3{margin:4px 0 0;font:600 .74rem var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--mute)}
+.debrief p{margin:0;max-width:70ch}
+.debrief .fala{background:var(--oks);border-radius:10px;padding:12px 14px;font-style:italic}
+.estrelas{font:600 .9rem var(--mono);color:var(--p2)}
+code{font:400 .86em var(--mono);background:var(--accent-soft);padding:1px 5px;border-radius:5px;overflow-wrap:anywhere}
+.como{font-size:.88rem;color:var(--mute)}
+@media (max-width:860px){
+  .app{grid-template-columns:1fr}
+  .fila{position:static;height:auto;border-right:0;border-bottom:1px solid var(--line);padding-right:max(16px,env(safe-area-inset-right,0px))}
+  .lista{grid-auto-flow:column;grid-auto-columns:minmax(200px,70%);overflow-x:auto;padding-bottom:4px}
+  .tela{height:300px}
+  .chamado,.debrief{padding:16px}
+}
+</style>
+
+<div class="app">
+  <aside class="fila">
+    <div class="marca"><b>Plantão de Redes</b><span>Fila de chamados para treinar na prática</span></div>
+    <div class="prog" id="prog"></div>
+    <ul class="lista" id="lista"></ul>
+    <p class="como">Cada chamado é um defeito de verdade numa rede de hospital. Investigue com comandos, ache a causa, corrija e prove que voltou. Digite <code>ajuda</code> em qualquer equipamento.</p>
+  </aside>
+  <main><div class="mesa">
+    <section class="chamado" aria-live="polite">
+      <div class="cab"><span id="num"></span><span class="pri" id="pri"></span><span class="tag" id="area"></span></div>
+      <h1 id="titulo"></h1>
+      <p class="desc" id="desc"></p>
+      <div class="meta" id="meta"></div>
+      <pre class="topo" id="topo"></pre>
+      <div class="obj" id="obj"></div>
+    </section>
+    <div class="console">
+      <div class="abas" id="abas"></div>
+      <div class="tela" id="tela" role="log"></div>
+      <form class="linha" id="form"><label for="cmd" id="prompt"></label><input id="cmd" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="digite um comando"></form>
+      <div class="chips" id="chips"></div>
+    </div>
+    <div class="acoes">
+      <button class="btn sec" id="bDica" type="button">Pedir dica</button>
+      <button class="btn sec" id="bReset" type="button">Recomeçar chamado</button>
+      <span class="como" id="aviso"></span>
+    </div>
+    <div class="dicas" id="dicas"></div>
+    <section class="debrief" id="deb" hidden></section>
+  </div></main>
+</div>
+
+<script>
+/* ---------- utilidades de saída ---------- */
+const nl='\n';
+function winPing(ip,res){
+  let h=`Disparando ${ip} com 32 bytes de dados:`+nl;
+  if(res==='ok') return h+[1,2,1,1].map(t=>`Resposta de ${ip}: bytes=32 tempo=${t}ms TTL=${ip.startsWith('8.')?117:63}`).join(nl)+nl+nl+`Estatísticas do Ping para ${ip}:`+nl+`    Pacotes: Enviados = 4, Recebidos = 4, Perdidos = 0 (0% de perda)`;
+  if(res==='lento') return h+`Resposta de ${ip}: bytes=32 tempo=812ms TTL=255`+nl+'Esgotado o tempo limite do pedido.'+nl+`Resposta de ${ip}: bytes=32 tempo=1430ms TTL=255`+nl+'Esgotado o tempo limite do pedido.'+nl+nl+`    Pacotes: Enviados = 4, Recebidos = 2, Perdidos = 2 (50% de perda)`;
+  if(res==='inac') return h+[1,2,3,4].map(()=>`Resposta de ${res==='inac'?'10.10.20.55':ip}: Host de destino inacessível.`).join(nl);
+  if(res==='nome') return `A solicitação ping não pôde encontrar o host ${ip}. Verifique o nome e tente novamente.`;
+  return h+[1,2,3,4].map(()=>'Esgotado o tempo limite do pedido.').join(nl)+nl+nl+`    Pacotes: Enviados = 4, Recebidos = 0, Perdidos = 4 (100% de perda)`;
+}
+function iosPing(ip,ok){
+  return 'Type escape sequence to abort.'+nl+`Sending 5, 100-byte ICMP Echos to ${ip}, timeout is 2 seconds:`+nl+(ok?'!!!!!'+nl+'Success rate is 100 percent (5/5), round-trip min/avg/max = 1/1/2 ms'+nl+'» "!" = resposta recebida. 5 de 5: caminho funcionando.':'.....'+nl+'Success rate is 0 percent (0/5)'+nl+'» "." = sem resposta. Nenhum dos 5 pacotes voltou.');
+}
+function normIf(s){
+  s=s.toLowerCase().replace(/\s+/g,'');
+  let m=s.match(/^(gigabitethernet|gig|gi|g)(\d+\/\d+\/\d+)$/); if(m) return 'Gi'+m[2];
+  m=s.match(/^(port-channel|po)(\d+)$/); if(m) return 'Po'+m[2];
+  return null;
+}
+
+/* ---------- casos ---------- */
+const CASOS=[];
+const WR={r:/^(wr(ite)?( mem(ory)?)?|copy run(ning-config)? start(up-config)?)$/,f:()=>'Building configuration...'+nl+'[OK]'+nl+'» Configuração salva. Sem isso, um reinício do switch desfaz a sua mudança.'};
+const DOIF={r:/^(description .*|no shut(down)?|switchport mode access)$/,m:'if',f:()=>''};
+const PCAJ=['ipconfig','ipconfig /all','ping <ip ou nome>','tracert <ip>','ipconfig /renew'];
+
+/* 1 — gateway errado */
+CASOS.push({id:'gw',num:'INC-24817',pri:'P2 · alta',area:'Princípios · PC',
+titulo:'Recepção do PS sem internet e sem sistema',
+desc:'"Trocaram meu computador hoje de manhã e desde então nada abre. Nem o sistema, nem a internet." O técnico de campo configurou a máquina nova copiando os dados de uma planilha antiga.',
+meta:[['Solicitante','Recepção do Pronto-Socorro'],['Equipamento','PC-RECEP01'],['Documentação da rede','VLAN 20 · 10.10.20.0/24 · gateway 10.10.20.1 · DHCP ativo']],
+topo:'PC-RECEP01 ──── switch do andar ──── gateway 10.10.20.1 ──── FortiGate ──── Internet\n(10.10.20.55)                          (VLAN 20)',
+obj:'descobrir por que o PC não sai da própria rede, corrigir e provar com <code>ping 8.8.8.8</code>.',
+init:()=>({dhcp:false}),
+devs:[{id:'pc',nome:'PC-RECEP01',host:'Windows 11',tipo:'pc',user:'recepcao',ajuda:[...PCAJ,'arp -a'],regras:[
+ {r:/^ipconfig( \/all)?$/,f:(s,m)=>{const all=!!m[1];const ip=s.dhcp?'10.10.20.87':'10.10.20.55',gw=s.dhcp?'10.10.20.1':'10.10.20.254';
+  return 'Adaptador Ethernet Ethernet:'+nl+(all?`   DHCP Habilitado. . . . . . . . . . : ${s.dhcp?'Sim':'Não'}`+nl:'')+`   Endereço IPv4. . . . . . . . . . . : ${ip}`+nl+'   Máscara de Sub-rede . . . . . . . . : 255.255.255.0'+nl+`   Gateway Padrão. . . . . . . . . . . : ${gw}`+(all?nl+'   Servidores DNS. . . . . . . . . . . : 10.10.1.10':'')+nl+'» Gateway = a "porta de saída" da rede. Todo tráfego para fora de 10.10.20.x vai para ele.'}},
+ {r:/^ping (\S+)$/,f:(s,m)=>{const ip=m[1];
+  if(ip==='10.10.20.1') return winPing(ip,'ok')+nl+'» O gateway correto responde. Então o cabo, a porta e a VLAN estão bons.';
+  if(ip==='10.10.20.254') return winPing(ip,'to')+nl+'» Ninguém responde nesse endereço.';
+  if(/^(8\.8\.8\.8|google\.com|mv\.hvc\.local|10\.10\.1\.\d+)$/.test(ip)){
+   if(s.dhcp) return {o:winPing(ip,'ok')+nl+'✔ Saiu da rede local. Chamado resolvido.',solve:true};
+   return winPing(ip,'inac')+nl+'» "Host de destino inacessível" vindo do próprio PC: ele nem conseguiu entregar o pacote ao gateway.';}
+  return winPing(ip,'to');}},
+ {r:/^tracert (\S+)$/,f:(s,m)=>s.dhcp?`Rastreando a rota para ${m[1]}`+nl+'  1    <1 ms    <1 ms    <1 ms  10.10.20.1'+nl+'  2     1 ms     1 ms     1 ms  10.10.0.1'+nl+'  3     6 ms     5 ms     6 ms  200.160.2.1'+nl+'Rastreamento concluído.':`Rastreando a rota para ${m[1]}`+nl+'  1  10.10.20.55  relatórios: Host de destino inacessível.'+nl+'Rastreamento concluído.'+nl+'» Parou no salto 1, ou seja, antes do gateway.'},
+ {r:/^arp -a$/,f:s=>'Interface: '+(s.dhcp?'10.10.20.87':'10.10.20.55')+' --- 0xb'+nl+'  Endereço IP           Endereço físico       Tipo'+nl+'  10.10.20.1            00-09-0f-aa-20-01     dinâmico'+nl+'  10.10.20.255          ff-ff-ff-ff-ff-ff     estático'+nl+'» ARP traduz IP em endereço físico (MAC). Repare que não existe nenhuma entrada para 10.10.20.254.'},
+ {r:/^netsh int(erface)? ip(v4)? set address .*dhcp$/,f:s=>{s.dhcp=true;return 'Ok.'+nl+'» Adaptador voltou para DHCP e recebeu IP, máscara e gateway do servidor.'}},
+ {r:/^netsh int(erface)? ip(v4)? set address .*static .*10\.10\.20\.1$/,f:s=>{s.dhcp=true;return 'Ok.'+nl+'» Gateway corrigido manualmente. Funciona, mas o padrão desta rede é DHCP.'}},
+ {r:/^ipconfig \/renew$/,f:s=>s.dhcp?'Adaptador Ethernet Ethernet:'+nl+'   Endereço IPv4. . . . . . . . . . . : 10.10.20.87'+nl+'   Gateway Padrão. . . . . . . . . . . : 10.10.20.1':'Ocorreu um erro ao renovar a interface Ethernet: o DHCP não está habilitado neste adaptador.'+nl+'» O IP foi digitado à mão (estático), então o DHCP não age aqui.'},
+]}],
+dicas:['Comece pelo que o PC acha que é: <code>ipconfig /all</code>. Compare com a documentação do chamado.','O gateway configurado é 10.10.20.254, mas a documentação diz 10.10.20.1. Teste os dois com <code>ping</code>.','Volte o adaptador para DHCP: <code>netsh interface ip set address "Ethernet" dhcp</code>. Depois teste <code>ping 8.8.8.8</code>.'],
+causa:'IP estático copiado de planilha antiga com gateway 10.10.20.254, que não existe. O PC falava com a própria rede, mas não tinha por onde sair.',
+conceito:'Para falar com outra rede o PC entrega o pacote ao gateway. Se o gateway estiver errado, tudo dentro da VLAN funciona e tudo fora falha. O teste que separa as camadas: ping no gateway correto (rede local ok) e ping para fora (roteamento).',
+fala:'"Fiz o ipconfig e vi que o gateway não batia com a documentação. Confirmei com ping que o gateway certo respondia e o configurado não. Voltei a máquina para DHCP e validei com ping externo."'});
+
+/* 2 — DNS */
+CASOS.push({id:'dns',num:'INC-24822',pri:'P3 · média',area:'Princípios · PC',
+titulo:'"A internet caiu", mas o ramal funciona',
+desc:'Faturista diz que nenhum site e nem o sistema MV abrem. O telefone IP na mesma mesa funciona normal. Outros PCs do setor estão ok.',
+meta:[['Solicitante','Faturamento'],['Equipamento','PC-FAT02'],['Documentação da rede','DNS do hospital: 10.10.1.10. O antigo 10.10.1.250 foi desligado na migração do mês passado.']],
+topo:'PC-FAT02 ──── gateway 10.10.30.1 ──┬── DNS 10.10.1.10 (ativo)\n                                    ├── DNS 10.10.1.250 (desligado)\n                                    └── MV: mv.hvc.local = 10.10.1.40',
+obj:'descobrir por que nomes não funcionam, corrigir e provar com <code>ping mv.hvc.local</code>.',
+init:()=>({dns:'10.10.1.250'}),
+devs:[{id:'pc',nome:'PC-FAT02',host:'Windows 11',tipo:'pc',user:'faturamento',ajuda:[...PCAJ.slice(0,4),'nslookup <nome>','nslookup <nome> <servidor>','ipconfig /flushdns'],regras:[
+ {r:/^ipconfig( \/all)?$/,f:(s,m)=>'Adaptador Ethernet Ethernet:'+nl+(m[1]?'   DHCP Habilitado. . . . . . . . . . : Não'+nl:'')+'   Endereço IPv4. . . . . . . . . . . : 10.10.30.42'+nl+'   Máscara de Sub-rede . . . . . . . . : 255.255.255.0'+nl+'   Gateway Padrão. . . . . . . . . . . : 10.10.30.1'+(m[1]?nl+`   Servidores DNS. . . . . . . . . . . : ${s.dns}`:nl+'» O ipconfig simples não mostra o DNS. Use ipconfig /all.')},
+ {r:/^ping (\S+)$/,f:(s,m)=>{const x=m[1],ok=s.dns==='10.10.1.10';
+  if(/^\d+\.\d+\.\d+\.\d+$/.test(x)) return x==='10.10.1.250'?winPing(x,'to')+nl+'» Esse servidor não responde.':winPing(x,'ok')+(x==='8.8.8.8'?nl+'» Por IP a internet funciona. Então a rede está de pé.':'');
+  if(!ok) return winPing(x,'nome')+nl+'» O PC não conseguiu traduzir o nome em IP.';
+  const ip=x.includes('hvc.local')?'10.10.1.40':'142.250.79.46';
+  return {o:winPing(ip,'ok').replace('Disparando '+ip,'Disparando '+x+' ['+ip+']')+nl+'✔ Nome resolvido. Chamado resolvido.',solve:true};}},
+ {r:/^nslookup (\S+)( (\S+))?$/,f:(s,m)=>{const srv=m[3]||s.dns;
+  if(srv==='10.10.1.250') return 'DNS request timed out.'+nl+'    timeout was 2 seconds.'+nl+'Servidor:  UnKnown'+nl+'Address:  10.10.1.250'+nl+'*** Tempo limite de solicitação esgotado'+nl+'» O servidor DNS que o PC usa não responde.';
+  return 'Servidor:  dc01.hvc.local'+nl+'Address:  10.10.1.10'+nl+nl+'Nome:    '+m[1]+nl+'Address:  '+(m[1].includes('hvc.local')?'10.10.1.40':'142.250.79.46')+(m[3]&&s.dns!=='10.10.1.10'?nl+'» Perguntando direto ao servidor certo, resolve. O problema está no DNS configurado no PC.':'');}},
+ {r:/^ipconfig \/flushdns$/,f:()=>'Configuração de IP do Windows'+nl+'Cache do DNS Resolver liberado.'+nl+'» Limpar o cache não adianta se o servidor DNS configurado está errado.'},
+ {r:/^tracert (\S+)$/,f:(s,m)=>/^\d/.test(m[1])?'  1    <1 ms  10.10.30.1'+nl+'  2     1 ms  '+m[1]+nl+'Rastreamento concluído.':(s.dns==='10.10.1.10'?'  1    <1 ms  10.10.30.1'+nl+'Rastreamento concluído.':'Não é possível resolver o nome do sistema de destino '+m[1]+'.')},
+ {r:/^netsh int(erface)? ip(v4)? set dns(servers)? .*10\.10\.1\.10( primary)?$/,f:s=>{s.dns='10.10.1.10';return 'Ok.'+nl+'» DNS trocado para o servidor ativo.'}},
+ {r:/^netsh int(erface)? ip(v4)? set dns(servers)? .*dhcp$/,f:s=>{s.dns='10.10.1.10';return 'Ok.'+nl+'» DNS agora vem do DHCP, que entrega 10.10.1.10.'}},
+]}],
+dicas:['Ping por IP funciona? Teste <code>ping 8.8.8.8</code> e depois <code>ping google.com</code>. A diferença entre os dois é a pista.','Veja qual DNS o PC usa com <code>ipconfig /all</code> e teste <code>nslookup google.com</code>. Depois compare com <code>nslookup google.com 10.10.1.10</code>.','Troque o DNS: <code>netsh interface ip set dns "Ethernet" static 10.10.1.10</code>. Valide com <code>ping mv.hvc.local</code>.'],
+causa:'O PC tinha DNS fixo no servidor 10.10.1.250, desligado na migração. A rede funcionava, mas nenhum nome era traduzido em IP.',
+conceito:'DNS traduz nome em IP. Quando ping por IP funciona e por nome não, o problema é DNS, não rede. O nslookup apontando para outro servidor prova onde está a falha sem mexer em nada.',
+fala:'"Separei rede de resolução de nomes: ping por IP funcionava e por nome não. Com nslookup vi que o DNS configurado não respondia e que o servidor oficial resolvia. Corrigi o DNS e validei pelo nome do sistema."'});
+
+/* 3 — VLAN de acesso errada */
+CASOS.push({id:'vlan',num:'INC-24830',pri:'P2 · alta',area:'Switch · VLAN',
+titulo:'PC novo do faturamento não acessa o sistema',
+desc:'Mudaram a faturista de mesa. O PC liga, navega na internet, mas o sistema de faturamento (10.10.30.5) não abre. O sistema só aceita conexões da rede do faturamento.',
+meta:[['Ponto de rede','A2-12 → SW-AND2 porta Gi1/0/12'],['VLANs','20 = Recepção · 30 = Faturamento'],['Regra','10.10.30.5 só aceita a VLAN 30']],
+topo:'PC-FAT05 ── ponto A2-12 ── SW-AND2 Gi1/0/12 ══ trunk ══ CORE ── 10.10.30.5 (sistema)\n                             VLAN 20 → 10.10.20.0/24\n                             VLAN 30 → 10.10.30.0/24',
+obj:'achar em qual VLAN a porta está, colocar na VLAN certa e provar com <code>ping 10.10.30.5</code> no PC.',
+init:()=>({vlan:20,pc:20}),
+devs:[
+{id:'pc',nome:'PC-FAT05',host:'Windows 11',tipo:'pc',user:'faturamento',ajuda:['ipconfig','ping <ip>','ipconfig /renew'],regras:[
+ {r:/^ipconfig( \/all)?$/,f:s=>'Adaptador Ethernet Ethernet:'+nl+`   Endereço IPv4. . . . . . . . . . . : 10.10.${s.pc}.${s.pc===20?143:61}`+nl+'   Máscara de Sub-rede . . . . . . . . : 255.255.255.0'+nl+`   Gateway Padrão. . . . . . . . . . . : 10.10.${s.pc}.1`+(s.pc!==30?nl+`» O PC está recebendo IP da faixa 10.10.${s.pc}.x. Pela documentação, essa faixa não é do faturamento.`:'')},
+ {r:/^ipconfig \/renew$/,f:s=>{s.pc=s.vlan;return 'Adaptador Ethernet Ethernet:'+nl+`   Endereço IPv4. . . . . . . . . . . : 10.10.${s.pc}.${s.pc===20?143:61}`+nl+`   Gateway Padrão. . . . . . . . . . . : 10.10.${s.pc}.1`+nl+'» O DHCP entrega o IP da VLAN em que a porta do switch está.'}},
+ {r:/^ping (\S+)$/,f:(s,m)=>{if(m[1]==='10.10.30.5'){if(s.pc===30)return{o:winPing(m[1],'ok')+nl+'✔ PC na VLAN 30 alcança o sistema. Chamado resolvido.',solve:true};return winPing(m[1],'to')+nl+'» Bloqueado: o sistema só aceita a rede 10.10.30.0/24.'}return winPing(m[1],'ok')}},
+]},
+{id:'sw',nome:'SW-AND2',host:'Cisco 2960-X',tipo:'ios',ajuda:['show vlan brief','show interfaces status','show interfaces gi1/0/12 switchport','show running-config interface gi1/0/12','show mac address-table interface gi1/0/12'],regras:[
+ {r:/^sh(ow)? vlan( br(ief)?)?$/,f:s=>'VLAN Name             Status    Ports'+nl+'---- ---------------- --------- ---------------------------'+nl+'1    default          active    Gi1/0/40-47'+nl+`20   RECEPCAO         active    Gi1/0/1-11${s.vlan===20?', Gi1/0/12':''}`+nl+`30   FATURAMENTO      active    Gi1/0/13-24${s.vlan===30?', Gi1/0/12':''}`+nl+'» Cada linha é uma VLAN e as portas que pertencem a ela.'+(s.vlan===20?nl+'» A Gi1/0/12 está junto com as portas da recepção.':'')},
+ {r:/^sh(ow)? int(erfaces?)? status$/,f:s=>'Port      Name               Status       Vlan  Duplex Speed'+nl+'Gi1/0/11  RECEP-BALCAO-3     connected    20    a-full a-1000'+nl+`Gi1/0/12  PONTO-A2-12-FAT    connected    ${s.vlan}    a-full a-1000`+nl+'Gi1/0/13  FAT-MESA-1         connected    30    a-full a-1000'+nl+'» A descrição diz FAT (faturamento), mas a coluna Vlan diz outra coisa.'},
+ {r:/^sh(ow)? int(erfaces?)? (\S+) sw(itchport)?$/,f:(s,m)=>normIf(m[3])!=='Gi1/0/12'?'» Essa porta não tem relação com o chamado. Olhe a Gi1/0/12.':'Name: Gi1/0/12'+nl+'Switchport: Enabled'+nl+'Administrative Mode: static access'+nl+`Access Mode VLAN: ${s.vlan} (${s.vlan===20?'RECEPCAO':s.vlan===30?'FATURAMENTO':'VLAN'+s.vlan})`+nl+'» Porta de acesso = pertence a uma única VLAN. Aqui está a VLAN dela.'},
+ {r:/^sh(ow)? run(ning-config)? int(erface)? (\S+)$/,f:(s,m)=>normIf(m[4])!=='Gi1/0/12'?'» Olhe a interface do chamado: Gi1/0/12.':'interface GigabitEthernet1/0/12'+nl+' description PONTO-A2-12-FAT'+nl+' switchport mode access'+nl+` switchport access vlan ${s.vlan}`+nl+' spanning-tree portfast'+nl+'end'},
+ {r:/^sh(ow)? mac( address-table)?( int(erface)? (\S+))?$/,f:s=>'          Mac Address Table'+nl+'Vlan    Mac Address       Type        Ports'+nl+`  ${s.vlan}    3c52.82a1.77f0    DYNAMIC     Gi1/0/12`+nl+'» O switch aprendeu o MAC do PC nessa porta e nessa VLAN.'},
+ {r:/^switchport access vlan (\d+)$/,m:'if',f:(s,m,d)=>{if(d.ifc!=='Gi1/0/12')return '» Você mudou a '+d.ifc+', mas o PC está na Gi1/0/12. Para ele nada mudou.';s.vlan=+m[1];return s.vlan===30?'» Porta movida para a VLAN 30. O PC ainda está com o IP antigo: renove o IP nele.':'» Porta movida para a VLAN '+m[1]+'. Confira a documentação: é essa mesmo?'}},
+ DOIF,WR]}],
+dicas:['No PC, <code>ipconfig</code> mostra de qual faixa veio o IP. Compare com a documentação das VLANs.','No switch, <code>show vlan brief</code> ou <code>show interfaces status</code> mostra em qual VLAN está a Gi1/0/12.','Corrija: <code>conf t</code> → <code>interface gi1/0/12</code> → <code>switchport access vlan 30</code> → <code>end</code>. No PC: <code>ipconfig /renew</code> e <code>ping 10.10.30.5</code>.'],
+causa:'A porta Gi1/0/12 estava configurada na VLAN 20 (recepção). O PC recebia IP da recepção e o sistema de faturamento recusava essa faixa.',
+conceito:'VLAN divide um switch físico em redes separadas. A porta de acesso define em qual rede o PC cai e, por consequência, qual IP o DHCP entrega. IP "errado" com cabo funcionando quase sempre é VLAN da porta.',
+fala:'"O IP do PC estava na faixa da recepção. No switch confirmei com show vlan brief que a porta estava na VLAN 20, movi para a 30, renovei o IP e validei o acesso ao sistema. Depois salvei a configuração."'});
+
+function vlist(t){const o=[];t.split(',').forEach(p=>{const r=p.split('-').map(Number);if(r.length===2)for(let i=r[0];i<=r[1];i++)o.push(i);else if(!isNaN(r[0]))o.push(r[0])});return o}
+function fmt(a){return [...new Set(a)].sort((x,y)=>x-y).join(',')}
+
+/* 4 — trunk sem a VLAN nova */
+CASOS.push({id:'trunk',num:'CHG-1107',pri:'P2 · alta',area:'Switch · Trunk',
+titulo:'Tomografia nova sem rede no 3º andar',
+desc:'Foi criada a VLAN 40 (Tomografia) para os equipamentos novos. O switch do 3º andar já foi configurado pelo colega. Os PCs da tomografia ligam, mas ficam sem IP. A recepção do 3º andar (VLAN 20) funciona normal.',
+meta:[['Equipamento','PC-TOMO01 (VLAN 40)'],['Ligação','SW-CORE Gi1/0/48 ══ SW-AND3 (trunk)'],['DHCP','Servidor no datacenter, atrás do core']],
+topo:'DHCP 10.10.1.5 ── SW-CORE Gi1/0/48 ══ trunk ══ SW-AND3 ──┬── PC-TOMO01   (VLAN 40)\n                                                         └── recepção 3º (VLAN 20)',
+obj:'fazer a VLAN 40 chegar ao 3º andar sem derrubar as outras VLANs, e provar com <code>ping 10.10.40.1</code> no PC.',
+init:()=>({al:[1,10,20,30],pc:false}),
+devs:[
+{id:'pc',nome:'PC-TOMO01',host:'Windows 11',tipo:'pc',user:'tomografia',ajuda:['ipconfig','ipconfig /renew','ping <ip>'],regras:[
+ {r:/^ipconfig( \/all)?$/,f:s=>s.pc?'   Endereço IPv4. . . . . . . . . . . : 10.10.40.25'+nl+'   Gateway Padrão. . . . . . . . . . . : 10.10.40.1':'   Endereço IPv4 de Configuração Automática: 169.254.88.14'+nl+'   Máscara de Sub-rede . . . . . . . . : 255.255.0.0'+nl+'   Gateway Padrão. . . . . . . . . . . :'+nl+'» 169.254.x.x (APIPA) = o Windows não encontrou nenhum servidor DHCP e inventou um IP.'},
+ {r:/^ipconfig \/renew$/,f:s=>{if(s.al.includes(40)){s.pc=true;return '   Endereço IPv4. . . . . . . . . . . : 10.10.40.25'+nl+'   Gateway Padrão. . . . . . . . . . . : 10.10.40.1'+nl+'» Agora o pedido de DHCP atravessou o trunk.'}return 'Ocorreu um erro ao renovar a interface Ethernet: não foi possível contatar o servidor DHCP. O tempo limite da solicitação foi esgotado.'+nl+'» O pedido de DHCP sai do PC mas não chega ao servidor.'}},
+ {r:/^ping (\S+)$/,f:s=>{if(!s.pc)return 'Falha geral.'+nl+'» Sem IP válido o PC não fala com ninguém. Primeiro ele precisa de IP.';
+  if(!s.al.includes(20)||!s.al.includes(30))return winPing('10.10.40.1','ok')+nl+'✖ A tomografia funciona, mas o telefone tocou: a recepção do 3º andar caiu. Confira a lista do trunk no core.';
+  return {o:winPing('10.10.40.1','ok')+nl+'✔ VLAN 40 chegando ao andar e as demais intactas. Chamado resolvido.',solve:true}}},
+]},
+{id:'sw',nome:'SW-CORE',host:'Cisco 9300',tipo:'ios',ajuda:['show interfaces trunk','show vlan brief','show running-config interface gi1/0/48'],regras:[
+ {r:/^sh(ow)? int(erfaces?)? trunk$/,f:s=>'Port        Mode   Encapsulation  Status     Native vlan'+nl+'Gi1/0/48    on     802.1q         trunking   1'+nl+nl+'Port        Vlans allowed on trunk'+nl+`Gi1/0/48    ${fmt(s.al)}`+nl+'» Trunk = porta que carrega várias VLANs, cada pacote com uma etiqueta (802.1q).'+nl+'» "Vlans allowed" = quais VLANs têm permissão de passar.'},
+ {r:/^sh(ow)? vlan( br(ief)?)?$/,f:()=>'VLAN Name             Status'+nl+'1    default          active'+nl+'10   ENFERMAGEM       active'+nl+'20   RECEPCAO         active'+nl+'30   FATURAMENTO      active'+nl+'40   TOMOGRAFIA       active'+nl+'» A VLAN 40 existe no core. Existir não significa passar pelo trunk.'},
+ {r:/^sh(ow)? run(ning-config)? int(erface)? (\S+)$/,f:(s,m)=>normIf(m[4])!=='Gi1/0/48'?'» A ligação com o 3º andar é a Gi1/0/48.':'interface GigabitEthernet1/0/48'+nl+' description TRUNK-SW-AND3'+nl+' switchport mode trunk'+nl+` switchport trunk allowed vlan ${fmt(s.al)}`+nl+'end'},
+ {r:/^switchport trunk allowed vlan (add|remove) ([\d,\-]+)$/,m:'if',f:(s,m,d)=>{if(d.ifc!=='Gi1/0/48')return '» Essa não é a porta do trunk para o 3º andar.';const v=vlist(m[2]);s.al=m[1]==='add'?[...new Set([...s.al,...v])]:s.al.filter(x=>!v.includes(x));return '» Lista agora: '+fmt(s.al)+(m[1]==='add'?'. Você acrescentou sem apagar as outras.':'')}},
+ {r:/^switchport trunk allowed vlan ([\d,\-]+)$/,m:'if',f:(s,m,d)=>{if(d.ifc!=='Gi1/0/48')return '» Essa não é a porta do trunk para o 3º andar.';s.al=[...new Set(vlist(m[1]))];
+  if(!s.al.includes(20)||!s.al.includes(30))return '✖ ATENÇÃO: sem a palavra "add" você SUBSTITUIU a lista inteira. Agora só passa: '+fmt(s.al)+'.'+nl+'✖ Recepção e faturamento do 3º andar acabaram de cair. Esse é o erro de trunk mais comum em produção.';
+  return '» Lista reescrita completa: '+fmt(s.al)+'.'}},
+ {r:/^switchport mode trunk$/,m:'if',f:()=>''},DOIF,WR]}],
+dicas:['No PC, <code>ipconfig</code> mostra 169.254.x.x. Isso quer dizer que o pedido de DHCP não chegou ao servidor. Onde ele pode estar sendo barrado?','No core, <code>show interfaces trunk</code> mostra quais VLANs podem passar na Gi1/0/48. A 40 está lá?','<code>conf t</code> → <code>interface gi1/0/48</code> → <code>switchport trunk allowed vlan add 40</code>. A palavra <b>add</b> é obrigatória. Depois, no PC: <code>ipconfig /renew</code> e <code>ping 10.10.40.1</code>.'],
+causa:'A VLAN 40 foi criada no core e no switch do andar, mas não foi incluída na lista de VLANs permitidas do trunk Gi1/0/48. O DHCP da tomografia nunca atravessava.',
+conceito:'Trunk leva várias VLANs num cabo só, mas apenas as que estão na lista de permitidas. Criar a VLAN é um passo; liberar no trunk em todo o caminho é outro. E "allowed vlan 40" sem "add" substitui a lista e derruba as outras VLANs.',
+fala:'"O PC pegava APIPA, então o DHCP não chegava. Vi no show interfaces trunk que a VLAN 40 não estava liberada na ligação com o andar. Incluí com allowed vlan add, tomando cuidado para não sobrescrever a lista, e validei que as outras VLANs continuavam no ar."'});
+
+/* 5 — loop / STP */
+CASOS.push({id:'stp',num:'INC-24841',pri:'P1 · crítica',area:'Switch · STP',
+titulo:'1º andar inteiro lento e caindo',
+desc:'Desde as 14h a enfermagem do 1º andar reclama que tudo trava: prontuário, impressoras, telefones. A equipe de limpeza disse que "organizou os cabos" da sala de reunião (pontos A1-07 e A1-08), que tem um switch pequeno embaixo da mesa.',
+meta:[['Switch','SW-AND1 (todas as portas do andar)'],['Pontos suspeitos','A1-07 → Gi1/0/7 · A1-08 → Gi1/0/8'],['Rede','VLAN 10 · gateway 10.10.10.1']],
+topo:'SW-AND1 Gi1/0/7 ─────┐\n                      ├── switch pequeno da sala de reunião\nSW-AND1 Gi1/0/8 ─────┘   (dois cabos voltando para o mesmo switch = caminho em círculo)',
+obj:'confirmar se é loop, parar o problema e provar com <code>ping 10.10.10.1</code> no PC do posto de enfermagem.',
+init:()=>({down:false,filt:true,guard:false}),
+devs:[
+{id:'sw',nome:'SW-AND1',host:'Cisco 2960-X',tipo:'ios',ajuda:['show logging','show processes cpu','show interfaces status','show running-config interface gi1/0/8','show spanning-tree interface gi1/0/8'],regras:[
+ {r:/^sh(ow)? log(ging)?$/,f:s=>s.down?'%LINK-5-CHANGED: Interface Gi1/0/8, changed state to down'+nl+'» Nenhum alerta novo de MAC trocando de porta. O loop parou.':Array(4).fill('%SW_MATM-4-MACFLAP_NOTIF: Host 0050.56a1.0c22 in vlan 10 is flapping between port Gi1/0/7 and port Gi1/0/8').join(nl)+nl+'» Tradução: o mesmo endereço MAC aparece ora na porta 7, ora na 8, sem parar.'+nl+'» Isso é a assinatura clássica de loop: os mesmos pacotes ficam girando em círculo.'},
+ {r:/^sh(ow)? proc(esses)? cpu( sorted)?$/,f:s=>`CPU utilization for five seconds: ${s.down?'7%/1%':'99%/71%'}; one minute: ${s.down?'31%':'98%'}`+(s.down?'':nl+'» CPU em 99%: o switch está afogado processando broadcast repetido.')},
+ {r:/^sh(ow)? int(erfaces?)? status$/,f:s=>'Port      Name             Status         Vlan'+nl+'Gi1/0/6   A1-06            connected      10'+nl+'Gi1/0/7   A1-07-REUNIAO    connected      10'+nl+`Gi1/0/8   A1-08-REUNIAO    ${s.down?(s.guard?'err-disabled':'disabled    '):'connected   '}   10`},
+ {r:/^sh(ow)? run(ning-config)? int(erface)? (\S+)$/,f:(s,m)=>{const i=normIf(m[4]);if(i!=='Gi1/0/7'&&i!=='Gi1/0/8')return '» Olhe as portas da sala de reunião: Gi1/0/7 e Gi1/0/8.';return `interface ${i.replace('Gi','GigabitEthernet')}`+nl+' switchport access vlan 10'+nl+' switchport mode access'+nl+' spanning-tree portfast'+(s.filt?nl+' spanning-tree bpdufilter enable':'')+(s.guard?nl+' spanning-tree bpduguard enable':'')+nl+'end'+(s.filt?nl+'» bpdufilter faz a porta ignorar o Spanning Tree (STP). O STP existe justamente para detectar e bloquear loops.':'')}},
+ {r:/^sh(ow)? span(ning-tree)?( int(erface)? (\S+))?( detail)?$/,f:s=>s.filt?'Port 8 (GigabitEthernet1/0/8) of VLAN0010 is designated forwarding'+nl+'   The port is in the portfast mode'+nl+'   Bpdu filter is enabled'+nl+'   BPDU: sent 0, received 0'+nl+'» BPDUs são as mensagens do STP. Enviadas 0, recebidas 0: o STP está cego nessa porta.':'Port 8 (GigabitEthernet1/0/8) of VLAN0010 is '+(s.down?'broken/down':'designated forwarding')+nl+'   Bpdu filter is disabled'},
+ {r:/^shut(down)?$/,m:'if',f:(s,m,d)=>{if(d.ifc!=='Gi1/0/7'&&d.ifc!=='Gi1/0/8')return '✖ Você desligou a '+d.ifc+', que não faz parte do loop. Um usuário ficou sem rede e o problema continua. Use "no shutdown" nela.';s.down=true;return `%LINK-5-CHANGED: Interface ${d.ifc}, changed state to administratively down`+nl+'» Um dos lados do círculo foi cortado. Contenção feita; a causa (STP desligado) ainda está lá.'}},
+ {r:/^no (spanning-tree )?bpdufilter( enable)?$/,m:'if',f:(s,m,d)=>{if(d.ifc!=='Gi1/0/7'&&d.ifc!=='Gi1/0/8')return '» Essa porta não está no loop.';s.filt=false;s.down=true;return s.guard?'%SPANTREE-2-BLOCK_BPDUGUARD: Received BPDU on port Gi1/0/8 with BPDU Guard enabled. Disabling port.'+nl+'%PM-4-ERR_DISABLE: bpduguard error detected on Gi1/0/8, putting Gi1/0/8 in err-disable state'+nl+'» Com o filtro fora, o BPDU Guard viu outro switch na porta e a desligou. Proteção funcionando.':'%SPANTREE-6-PORT_STATE: Port Gi1/0/8 instance 10 moving from forwarding to blocking'+nl+'» Com o filtro fora, o STP enxergou o loop e bloqueou uma das portas sozinho.'}},
+ {r:/^(spanning-tree )?bpduguard enable$/,m:'if',f:(s,m,d)=>{s.guard=true;if(s.filt)return '» BPDU Guard ligado, mas o bpdufilter continua ativo e tem prioridade. Na prática nada muda enquanto o filtro existir.';s.down=true;return '%PM-4-ERR_DISABLE: bpduguard error detected on '+d.ifc+', putting it in err-disable state'}},
+ {r:/^no shut(down)?$/,m:'if',f:(s,m,d)=>{if((d.ifc==='Gi1/0/7'||d.ifc==='Gi1/0/8')&&s.filt){s.down=false;return '✖ Porta religada com o filtro ainda ativo. O loop voltou.'}return ''}},
+ {r:/^(description .*|switchport mode access)$/,m:'if',f:()=>''},WR]},
+{id:'pc',nome:'PC-POSTO1',host:'Windows 11',tipo:'pc',user:'enfermagem',ajuda:['ping 10.10.10.1','ipconfig'],regras:[
+ {r:/^ipconfig( \/all)?$/,f:()=>'   Endereço IPv4. . . . . . . . . . . : 10.10.10.34'+nl+'   Gateway Padrão. . . . . . . . . . . : 10.10.10.1'+nl+'» Configuração do PC está certa. O problema não está aqui.'},
+ {r:/^ping (\S+)$/,f:(s,m)=>s.down?{o:winPing(m[1],'ok')+nl+'✔ Tempos de 1–2 ms e zero perda. Andar estabilizado. Chamado resolvido.',solve:true}:winPing(m[1],'lento')+nl+'» Tempo de 800 ms e 50% de perda dentro da própria rede. Rede local saudável responde em 1 ms.'},
+]}],
+dicas:['Lentidão no andar inteiro, de uma vez, depois de mexerem em cabos: suspeite de loop. <code>show logging</code> e <code>show processes cpu</code> confirmam.','Os logs mostram o mesmo MAC trocando entre Gi1/0/7 e Gi1/0/8. Veja a configuração delas com <code>show running-config interface gi1/0/8</code>. Por que o STP não bloqueou?','Contenção rápida: <code>conf t</code> → <code>interface gi1/0/8</code> → <code>shutdown</code>. Correção definitiva: <code>no spanning-tree bpdufilter enable</code> e <code>spanning-tree bpduguard enable</code> nas portas de usuário. Valide com <code>ping 10.10.10.1</code> no PC.'],
+causa:'Dois pontos da mesma sala foram ligados no mesmo switch pequeno, fechando um círculo. As portas tinham bpdufilter, que desliga o STP, então nada bloqueou o loop e o broadcast se multiplicou até travar o andar.',
+conceito:'STP (Spanning Tree) detecta caminhos em círculo e bloqueia um deles. Portas de usuário costumam ter portfast (sobem rápido) e bpduguard (desligam se aparecer um switch). O bpdufilter remove essa proteção e é perigoso em porta de usuário.',
+fala:'"Lentidão geral e CPU do switch em 99% me fizeram suspeitar de loop. O log mostrava MAC flapping entre duas portas da mesma sala. Contive desligando uma delas, e a causa era bpdufilter nas portas de acesso. Troquei por bpduguard para que, se acontecer de novo, a porta caia sozinha em vez de derrubar o andar."'});
+
+/* 6 — LACP com membro suspenso */
+CASOS.push({id:'lacp',num:'INC-24856',pri:'P3 · média',area:'Switch · LACP',
+titulo:'Link do pronto-socorro rodando pela metade',
+desc:'O monitoramento alerta que o Port-channel 1 (core ↔ switch do PS) está com 1 Gbps de 2 Gbps desde a mudança de ontem, quando liberaram a VLAN 40. Não há queda, mas o PS perdeu redundância: se o cabo restante falhar, o PS para.',
+meta:[['Agregação','Po1 = Gi1/0/1 + Gi1/0/2 (LACP)'],['Outro lado','SW-PS, configurado corretamente'],['Mudança de ontem','inclusão da VLAN 40 no trunk']],
+topo:'SW-CORE Gi1/0/1 ════════╗\n                        ╠══ Po1 (LACP, 2 x 1 Gbps) ══ SW-PS\nSW-CORE Gi1/0/2 ════════╝',
+obj:'descobrir por que um cabo saiu da agregação, corrigir e provar com <code>show etherchannel summary</code> mostrando as duas portas em uso.',
+init:()=>({ok:false}),
+devs:[{id:'sw',nome:'SW-CORE',host:'Cisco 9300',tipo:'ios',ajuda:['show etherchannel summary','show logging','show interfaces po1','show running-config interface gi1/0/1','show running-config interface gi1/0/2'],regras:[
+ {r:/^sh(ow)? ether(channel)? sum(mary)?$/,f:s=>{const t='Flags:  P - bundled in port-channel   s - suspended   S - Layer2   U - in use'+nl+nl+'Group  Port-channel  Protocol    Ports'+nl+'------+-------------+-----------+-----------------------'+nl+`1      Po1(SU)       LACP        Gi1/0/1(P)  Gi1/0/2(${s.ok?'P':'s'})`;
+  return s.ok?{o:t+nl+'✔ As duas portas com (P): agregação completa, 2 Gbps e redundância de volta. Chamado resolvido.',solve:true}:t+nl+'» (P) = porta trabalhando na agregação. (s) = suspensa: está ligada, mas o switch recusou usá-la.'}},
+ {r:/^sh(ow)? log(ging)?$/,f:s=>s.ok?'%EC-5-BUNDLE: Interface Gi1/0/2 joined port-channel Po1':'%EC-5-CANNOT_BUNDLE2: Gi1/0/2 is not compatible with Gi1/0/1 and will be suspended (vlan mask is different)'+nl+'» Tradução: a Gi1/0/2 não é compatível com a Gi1/0/1 e foi suspensa porque a lista de VLANs é diferente.'},
+ {r:/^sh(ow)? int(erfaces?)? po(rt-channel)? ?1$/,f:s=>'Port-channel1 is up, line protocol is up'+nl+`  MTU 1500 bytes, BW ${s.ok?'2000000':'1000000'} Kbit/sec`+nl+`  Members in this channel: Gi1/0/1${s.ok?' Gi1/0/2':''}`},
+ {r:/^sh(ow)? run(ning-config)? int(erface)? (\S+)$/,f:(s,m)=>{const i=normIf(m[4]);if(i==='Gi1/0/1'||i==='Po1')return `interface ${i==='Po1'?'Port-channel1':'GigabitEthernet1/0/1'}`+nl+' switchport mode trunk'+nl+' switchport trunk allowed vlan 1,10,20,30,40'+(i==='Po1'?'':nl+' channel-group 1 mode active')+nl+'end';
+  if(i==='Gi1/0/2')return 'interface GigabitEthernet1/0/2'+nl+' switchport mode trunk'+nl+` switchport trunk allowed vlan ${s.ok?'1,10,20,30,40':'1,10,20,30'}`+nl+' channel-group 1 mode active'+nl+'end'+(s.ok?'':nl+'» Compare linha a linha com a Gi1/0/1.');return '» Olhe Gi1/0/1, Gi1/0/2 ou Po1.'}},
+ {r:/^sh(ow)? lacp neigh(bor)?$/,f:()=>'Port      Flags  Priority  Dev ID          Port No'+nl+'Gi1/0/1   SA     32768     00a3.d1f0.1200  0x1'+nl+'Gi1/0/2   SA     32768     00a3.d1f0.1200  0x2'+nl+'» O SW-PS responde LACP nas duas portas. O lado de lá está ok.'},
+ {r:/^switchport trunk allowed vlan (add )?([\d,\-]+)$/,m:'if',f:(s,m,d)=>{if(d.ifc==='Gi1/0/1'||d.ifc==='Po1')return '» Essa já está com a lista certa (inclui a 40).';if(d.ifc!=='Gi1/0/2')return '» Essa porta não faz parte do Po1.';const v=vlist(m[2]);const tem=m[1]?v.includes(40):[1,10,20,30,40].every(x=>v.includes(x));if(!tem)return '» A lista ainda não ficou igual à da Gi1/0/1 (1,10,20,30,40).';s.ok=true;return '%EC-5-BUNDLE: Interface Gi1/0/2 joined port-channel Po1'+nl+'» Configurações iguais: a porta voltou para a agregação.'}},
+ {r:/^channel-group 1 mode (active|passive|on)$/,m:'if',f:()=>'» O modo LACP não é o problema aqui. Compare as outras linhas da configuração.'},
+ DOIF,WR]}],
+dicas:['<code>show etherchannel summary</code> mostra o estado de cada porta. Qual letra aparece ao lado da Gi1/0/2?','<code>show logging</code> diz o motivo da suspensão. Depois compare <code>show running-config interface gi1/0/1</code> com a da gi1/0/2.','A mudança de ontem foi aplicada só numa porta. Iguale: <code>conf t</code> → <code>interface gi1/0/2</code> → <code>switchport trunk allowed vlan add 40</code> → <code>end</code> → <code>show etherchannel summary</code>.'],
+causa:'Na mudança de ontem a VLAN 40 foi adicionada só na Gi1/0/1. Com listas de VLAN diferentes, o switch suspendeu a Gi1/0/2 da agregação para evitar comportamento inconsistente.',
+conceito:'LACP junta vários cabos num link lógico (Port-channel): soma banda e dá redundância. Todas as portas membro precisam ter configuração idêntica (VLANs, velocidade, modo). O certo é configurar na interface Port-channel, que replica para os membros.',
+fala:'"O show etherchannel summary mostrava a Gi1/0/2 suspensa. O log apontou diferença de VLANs, e comparando as configurações vi que a mudança de ontem foi feita só num membro. Igualei, a porta voltou ao bundle, e recomendei aplicar mudanças sempre na interface Port-channel."'});
+
+/* 7 — rota estática faltando */
+CASOS.push({id:'rota',num:'CHG-1112',pri:'P2 · alta',area:'Roteamento',
+titulo:'Clínica nova não acessa o servidor de imagens',
+desc:'A unidade Clínica Taquaral (rede 10.50.0.0/24) foi ligada ao hospital por VPN através do roteador R-VPN (10.10.0.2). A operadora garante que a VPN está de pé. Da clínica, o servidor de imagens 10.10.1.20 não responde.',
+meta:[['Rede da clínica','10.50.0.0/24'],['Caminho até a clínica','R-VPN 10.10.0.2'],['Rota padrão do core','FortiGate 10.10.0.1 (internet)']],
+topo:'PC-CLINICA 10.50.0.10 ── R-VPN 10.10.0.2 ──┐\n                                          ├── SW-CORE (roteia o hospital) ── servidor 10.10.1.20\n               FortiGate 10.10.0.1 ───────┘\n               (internet)',
+obj:'descobrir onde o caminho quebra, corrigir no core e provar com <code>ping 10.10.1.20</code> no PC da clínica.',
+init:()=>({rota:false}),
+devs:[
+{id:'pc',nome:'PC-CLINICA',host:'Windows 11',tipo:'pc',user:'clinica',ajuda:['ipconfig','ping 10.10.1.20','tracert 10.10.1.20','ping 10.10.0.2'],regras:[
+ {r:/^ipconfig( \/all)?$/,f:()=>'   Endereço IPv4. . . . . . . . . . . : 10.50.0.10'+nl+'   Gateway Padrão. . . . . . . . . . . : 10.50.0.1'},
+ {r:/^ping (\S+)$/,f:(s,m)=>{if(m[1]==='10.10.1.20')return s.rota?{o:winPing(m[1],'ok')+nl+'✔ Ida e volta funcionando. Chamado resolvido.',solve:true}:winPing(m[1],'to')+nl+'» Nenhuma resposta voltou. Lembre: um ping precisa de caminho de IDA e de VOLTA.';return winPing(m[1],'ok')+(m[1]==='10.10.0.2'?nl+'» A VPN está de pé: o R-VPN responde.':'')}},
+ {r:/^tracert (\S+)$/,f:s=>'Rastreando a rota para 10.10.1.20'+nl+'  1    <1 ms  10.50.0.1'+nl+'  2    14 ms  10.10.0.2'+nl+(s.rota?'  3    15 ms  10.10.0.3'+nl+'  4    15 ms  10.10.1.20'+nl+'Rastreamento concluído.':'  3     *        *        *     Esgotado o tempo limite do pedido.'+nl+'» Os pacotes chegam ao hospital (salto 2). O problema pode estar na volta.')},
+]},
+{id:'core',nome:'SW-CORE',host:'Cisco 9300 (L3)',tipo:'ios',ajuda:['show ip route','show ip route 10.50.0.10','ping 10.50.0.10','traceroute 10.50.0.10','ping 10.10.0.2'],regras:[
+ {r:/^sh(ow)? ip route$/,f:s=>'Gateway of last resort is 10.10.0.1 to network 0.0.0.0'+nl+nl+'S*    0.0.0.0/0 [1/0] via 10.10.0.1'+nl+'C     10.10.0.0/24 is directly connected, Vlan100'+nl+'C     10.10.1.0/24 is directly connected, Vlan101'+nl+'C     10.10.10.0/24 is directly connected, Vlan10'+nl+(s.rota?'S     10.50.0.0/24 [1/0] via 10.10.0.2'+nl:'')+'S     10.60.0.0/24 [1/0] via 10.10.0.2'+nl+'» C = rede ligada direto no core. S = rota estática (alguém configurou). S* = rota padrão: para onde vai o que não está na lista.'},
+ {r:/^sh(ow)? ip route (\S+)$/,f:s=>s.rota?'Routing entry for 10.50.0.0/24'+nl+'  Known via "static", distance 1'+nl+'  * 10.10.0.2':'% Network not in table'+nl+'» O core não conhece essa rede. Então ele usa a rota padrão e manda para o FortiGate (internet).'},
+ {r:/^ping (\S+)$/,f:(s,m)=>iosPing(m[1],m[1]!=='10.50.0.10'||s.rota)},
+ {r:/^trace(route)? (\S+)$/,f:s=>'Tracing the route to 10.50.0.10'+nl+(s.rota?'  1 10.10.0.2 1 msec'+nl+'  2 10.50.0.10 14 msec':'  1 10.10.0.1 1 msec'+nl+'  2  *  *  *'+nl+'» O primeiro salto é o FortiGate, não o R-VPN. A volta está indo pelo caminho errado.')},
+ {r:/^ip route (\S+) (\S+) (\S+)$/,m:'conf',f:(s,m)=>{const [,net,mask,nh]=m;if(net!=='10.50.0.0')return '» Essa não é a rede da clínica (10.50.0.0).';if(nh==='10.10.0.1')return '» 10.10.0.1 é o FortiGate. Ele não sabe chegar na clínica; é exatamente para lá que o tráfego já está indo.';if(nh!=='10.10.0.2')return '» Próximo salto desconhecido. Quem leva até a clínica?';if(mask!=='255.255.255.0')return mask==='255.255.0.0'?(s.rota=true,'» Funciona, mas /16 cobre 10.50.0.0 a 10.50.255.255. Prefira a máscara exata da clínica: 255.255.255.0.'):'» Máscara não confere com a rede da clínica (/24 = 255.255.255.0).';s.rota=true;return '» Rota criada: tudo para 10.50.0.0/24 sai pelo R-VPN.'}},
+ WR]}],
+dicas:['No PC da clínica, <code>tracert 10.10.1.20</code> mostra até onde o pacote chega. A ida parece ok. E a volta?','No core, <code>show ip route</code>: existe alguma linha para 10.50.0.0? Se não existe, para onde vai a resposta? (<code>traceroute 10.50.0.10</code>)','<code>conf t</code> → <code>ip route 10.50.0.0 255.255.255.0 10.10.0.2</code> → <code>end</code>. Depois, no PC: <code>ping 10.10.1.20</code>.'],
+causa:'O core não tinha rota para 10.50.0.0/24. O pedido da clínica chegava ao servidor, mas a resposta seguia a rota padrão para o FortiGate, que a descartava.',
+conceito:'Todo roteador decide o próximo salto olhando a tabela de rotas, e vale a regra mais específica. O que não está na tabela vai para a rota padrão. Comunicação precisa de caminho nos dois sentidos: muito "não funciona" é rota de volta faltando.',
+fala:'"O traceroute mostrava que a ida chegava ao hospital. No core, show ip route não tinha a rede da clínica, então a resposta saía pela rota padrão rumo ao firewall. Criei a rota estática apontando para o roteador da VPN e validei ida e volta."'});
+
+/* 8 — FortiGate sem política */
+function fgtPol(p){return `    edit ${p.id}`+nl+Object.entries(p.f).map(([k,v])=>`        set ${k} ${v.map(x=>'"'+x+'"').join(' ')}`).join(nl)+nl+'    next'}
+CASOS.push({id:'fgt',num:'REQ-5530',pri:'P2 · alta',area:'FortiGate · Política',
+titulo:'Setor de imagem não abre o servidor de laudos',
+desc:'O novo servidor de laudos (10.10.1.30, HTTPS) entrou em produção. O setor de imagem (VLAN 40) não consegue abrir. Os objetos de endereço já foram criados no FortiGate pelo colega. Do próprio datacenter o site abre normal.',
+meta:[['Origem','REDE_IMAGEM 10.10.40.0/24 · interface vlan40'],['Destino','SRV_LAUDOS 10.10.1.30 · interface servidores'],['Serviço','HTTPS (443)']],
+topo:'PC-IMAGEM 10.10.40.25 ── [vlan40] FortiGate FGT-HVC [servidores] ── SRV_LAUDOS 10.10.1.30:443',
+obj:'provar que o firewall está bloqueando, liberar só o necessário e testar com <code>tnc 10.10.1.30 -port 443</code> no PC.',
+init:()=>({pols:[{id:1,f:{name:['IMAGEM-PACS'],srcintf:['vlan40'],dstintf:['servidores'],srcaddr:['REDE_IMAGEM'],dstaddr:['SRV_PACS'],action:['accept'],schedule:['always'],service:['HTTPS']}},{id:2,f:{name:['USUARIOS-INTERNET'],srcintf:['vlan20','vlan30','vlan40'],dstintf:['wan1'],srcaddr:['all'],dstaddr:['all'],action:['accept'],schedule:['always'],service:['HTTP','HTTPS','DNS'],nat:['enable']}}],ed:null,lib:false}),
+devs:[
+{id:'fw',nome:'FGT-HVC',host:'FortiGate 100F',tipo:'fgt',ajuda:['show firewall policy','show firewall address','diagnose sniffer packet any "host 10.10.1.30" 4','diagnose debug flow','get router info routing-table all'],regras:[
+ {r:/^show firewall policy$/,f:s=>'config firewall policy'+nl+s.pols.map(fgtPol).join(nl)+nl+'end'+nl+'» O FortiGate lê as políticas de cima para baixo e para na primeira que combina. Se nenhuma combina, bloqueia (política 0, "negação implícita").'},
+ {r:/^show firewall address$/,f:()=>'config firewall address'+nl+'    edit "REDE_IMAGEM"  set subnet 10.10.40.0 255.255.255.0'+nl+'    edit "SRV_PACS"     set subnet 10.10.1.20 255.255.255.255'+nl+'    edit "SRV_LAUDOS"   set subnet 10.10.1.30 255.255.255.255'+nl+'end'+nl+'» Objetos prontos. Criar o objeto não libera nada; quem libera é a política.'},
+ {r:/^diag(nose)? sniffer packet \S+ .*10\.10\.1\.30.*$/,f:s=>s.lib?'interfaces=[any]'+nl+'2.10 vlan40 in 10.10.40.25.51522 -> 10.10.1.30.443: syn'+nl+'2.10 servidores out 10.10.40.25.51522 -> 10.10.1.30.443: syn'+nl+'2.11 servidores in 10.10.1.30.443 -> 10.10.40.25.51522: syn ack'+nl+'» Entrou pela vlan40, saiu pela servidores e a resposta voltou.':'interfaces=[any]'+nl+'2.10 vlan40 in 10.10.40.25.51522 -> 10.10.1.30.443: syn'+nl+'3.12 vlan40 in 10.10.40.25.51522 -> 10.10.1.30.443: syn'+nl+'5.14 vlan40 in 10.10.40.25.51522 -> 10.10.1.30.443: syn'+nl+'» O pedido de conexão (syn) CHEGA no FortiGate pela vlan40, mas nunca SAI pela interface servidores.'+nl+'» Então o próprio firewall está segurando.'},
+ {r:/^diag(nose)? debug (flow.*|enable)$/,f:s=>s.lib?'id=20085 trace_id=7 msg="Allowed by Policy-3:"':'id=20085 trace_id=7 msg="vd-root:0 received a packet(proto=6, 10.10.40.25:51522->10.10.1.30:443) from vlan40."'+nl+'id=20085 trace_id=7 msg="find a route: gw-10.10.1.30 via servidores"'+nl+'id=20085 trace_id=7 msg="Denied by forward policy check (policy 0)"'+nl+'» Tradução: a rota existe (sabe ir pela interface servidores), mas foi NEGADO pela política 0 = nenhuma regra libera esse tráfego.'},
+ {r:/^get router info routing-table all$/,f:()=>'C   10.10.1.0/24 is directly connected, servidores'+nl+'C   10.10.40.0/24 is directly connected, vlan40'+nl+'S*  0.0.0.0/0 [10/0] via 200.160.2.1, wan1'+nl+'» Roteamento ok: as duas redes estão ligadas direto no firewall.'},
+ {r:/^config firewall policy$/,f:(s,m,d)=>{d.ctx=['policy'];return ''}},
+ {r:/^edit (\d+)$/,f:(s,m,d)=>{if(d.ctx[0]!=='policy')return 'Command fail. Return code -61'+nl+'» Primeiro entre em: config firewall policy';const id=+m[1];const ex=s.pols.find(p=>p.id===id);s.ed=ex?{id,f:JSON.parse(JSON.stringify(ex.f)),novo:false}:{id:id||Math.max(...s.pols.map(p=>p.id))+1,f:{},novo:true};d.ctx=['policy',String(s.ed.id)];return ex?'» Editando a política '+id+' ('+ex.f.name+').':'» Nova política, número '+s.ed.id+'.'}},
+ {r:/^(set|append|unset) (\S+)( (.+))?$/,f:(s,m,d)=>{if(!s.ed)return 'Command fail. Return code -61'+nl+'» Use "edit 0" para criar uma política antes de configurar campos.';const k=m[2],v=(m[4]||'').match(/"[^"]*"|\S+/g)||[];const vals=v.map(x=>x.replace(/"/g,'').replace(/^rede_imagem$/i,'REDE_IMAGEM').replace(/^srv_laudos$/i,'SRV_LAUDOS').replace(/^srv_pacs$/i,'SRV_PACS').replace(/^https$/i,'HTTPS').replace(/^all$/i,'all').replace(/^http$/i,'HTTP'));
+  if(m[1]==='unset')delete s.ed.f[k];else if(m[1]==='append')s.ed.f[k]=[...(s.ed.f[k]||[]),...vals];else s.ed.f[k]=vals;return ''}},
+ {r:/^show$/,f:s=>s.ed?fgtPol(s.ed):'» Nada em edição.'},
+ {r:/^abort$/,f:(s,m,d)=>{s.ed=null;d.ctx=d.ctx.slice(0,1);return '» Edição descartada.'}},
+ {r:/^(next|end)$/,f:(s,m,d)=>{const fim=m[1]==='end';if(!s.ed){if(fim)d.ctx=[];return ''}
+  const f=s.ed.f,has=(k,v)=>(f[k]||[]).some(x=>x.toLowerCase()===v.toLowerCase()),erros=[];
+  ['srcintf','dstintf','srcaddr','dstaddr','service','schedule'].forEach(k=>{if(!f[k]||!f[k].length)erros.push(k)});
+  if(erros.length){d.ctx=fim?[]:['policy'];s.ed=null;return erros.map(k=>'node_check_object fail! for '+k).join(nl)+nl+'Command fail. Return code -3'+nl+'» Política descartada. Faltou: '+erros.join(', ')+'. Toda política precisa de origem, destino (interface e endereço), serviço e horário (schedule "always").'}
+  const p={id:s.ed.id,f:{...f}};if(!p.f.action)p.f.action=['deny'];
+  const i=s.pols.findIndex(x=>x.id===p.id);if(i>=0)s.pols[i]=p;else s.pols.push(p);s.ed=null;d.ctx=fim?[]:['policy'];
+  const nota=[];
+  if(!has('srcintf','vlan40'))nota.push('a interface de origem deveria ser vlan40');
+  if(!has('dstintf','servidores'))nota.push('a interface de destino deveria ser servidores');
+  if(!has('dstaddr','SRV_LAUDOS')&&!has('dstaddr','all'))nota.push('o destino não inclui SRV_LAUDOS');
+  if(!has('srcaddr','REDE_IMAGEM')&&!has('srcaddr','all'))nota.push('a origem não inclui REDE_IMAGEM');
+  if(!has('service','HTTPS')&&!has('service','ALL'))nota.push('o serviço não inclui HTTPS');
+  if(!has('action','accept'))nota.push(f.action?'a ação está como deny':'faltou "set action accept" (o padrão é deny)');
+  if(nota.length){s.lib=false;return '» Política '+p.id+' gravada, mas não vai liberar: '+nota.join('; ')+'. Edite de novo com "edit '+p.id+'".'}
+  s.lib=true;const larga=has('service','ALL')||has('srcaddr','all')||has('dstaddr','all');
+  return '» Política '+p.id+' gravada e ativa.'+(larga?nl+'» Funciona, mas está larga demais ("all"/"ALL"). Em hospital, libere só origem, destino e porta necessários.':'')}},
+]},
+{id:'pc',nome:'PC-IMAGEM',host:'Windows 11',tipo:'pc',user:'imagem',ajuda:['tnc 10.10.1.30 -port 443','ping 10.10.1.30','ipconfig'],regras:[
+ {r:/^ipconfig( \/all)?$/,f:()=>'   Endereço IPv4. . . . . . . . . . . : 10.10.40.25'+nl+'   Gateway Padrão. . . . . . . . . . . : 10.10.40.1'},
+ {r:/^(tnc|test-netconnection) 10\.10\.1\.30( -port 443)?$/,f:s=>{const t='ComputerName     : 10.10.1.30'+nl+'RemotePort       : 443'+nl+'SourceAddress    : 10.10.40.25'+nl+`TcpTestSucceeded : ${s.lib?'True':'False'}`;return s.lib?{o:t+nl+'✔ Porta 443 aberta do setor de imagem até o servidor. Chamado resolvido.',solve:true}:t+nl+'» Testa a porta exata do serviço, não só se a máquina existe. False = a conexão não fechou.'}},
+ {r:/^ping (\S+)$/,f:(s,m)=>winPing(m[1],'to')+nl+'» Ping é ICMP, outro protocolo. Nem a política nova o liberaria. Para testar HTTPS use tnc.'},
+]}],
+dicas:['Antes de mudar qualquer coisa, prove onde para: <code>diagnose sniffer packet any "host 10.10.1.30" 4</code> mostra se o pacote entra e sai do firewall.','<code>diagnose debug flow</code> diz o motivo. "policy 0" significa que nenhuma política libera. Veja as existentes com <code>show firewall policy</code>.','<code>config firewall policy</code> → <code>edit 0</code> → <code>set name "IMAGEM-LAUDOS"</code> → <code>set srcintf vlan40</code> → <code>set dstintf servidores</code> → <code>set srcaddr REDE_IMAGEM</code> → <code>set dstaddr SRV_LAUDOS</code> → <code>set service HTTPS</code> → <code>set schedule always</code> → <code>set action accept</code> → <code>end</code>.'],
+causa:'Os objetos de endereço existiam, mas nenhuma política liberava vlan40 → servidores para o SRV_LAUDOS. O tráfego caía na negação implícita (política 0).',
+conceito:'No FortiGate nada passa sem política: interface de entrada e saída, origem, destino, serviço, horário e ação. As políticas são lidas de cima para baixo. O sniffer prova se o pacote atravessa; o debug flow diz qual política decidiu.',
+fala:'"Com o sniffer vi o SYN entrando pela vlan40 sem sair pela interface dos servidores. O debug flow confirmou negação pela política 0. Criei uma política só com a rede de imagem, o servidor de laudos e HTTPS, sem liberar além do necessário, e validei a porta 443 com Test-NetConnection."'});
+
+/* 9 — IP duplicado (tcpdump) */
+CASOS.push({id:'dup',num:'INC-24870',pri:'P2 · alta',area:'Análise · tcpdump',
+titulo:'Impressora de etiquetas imprime "às vezes"',
+desc:'A impressora de etiquetas de tubos do laboratório (10.10.60.15, porta 9100) falha em metade dos pedidos. O fornecedor do sistema garante que o servidor envia tudo e que "o problema é a rede". Começou depois da chegada de notebooks novos para as bancadas.',
+meta:[['Servidor','SRV-LIS 10.10.60.10 (Linux)'],['Impressora','ZEBRA-ETIQ-01 · 10.10.60.15 · porta Gi1/0/5'],['MAC da impressora (etiqueta)','00:1b:a9:44:10:02']],
+topo:'SRV-LIS 10.10.60.10 ── SW-LAB ──┬── Gi1/0/5  ZEBRA-ETIQ-01 (10.10.60.15)\n                                ├── Gi1/0/22 ?\n                                └── ...',
+obj:'provar com captura de pacotes o que está acontecendo, achar o culpado no switch, isolar e validar com <code>ping -c 4 10.10.60.15</code> no servidor.',
+init:()=>({fix:false,n:0}),
+devs:[
+{id:'srv',nome:'SRV-LIS',host:'srv-lis',tipo:'linux',ajuda:['ping -c 4 10.10.60.15','ip neigh','tcpdump -n -e -i eth0 host 10.10.60.15'],regras:[
+ {r:/^ping( -c ?\d+)? (\S+)$/,f:s=>s.fix?{o:'64 bytes from 10.10.60.15: icmp_seq=1 ttl=64 time=0.41 ms'+nl+'64 bytes from 10.10.60.15: icmp_seq=2 ttl=64 time=0.39 ms'+nl+'64 bytes from 10.10.60.15: icmp_seq=3 ttl=64 time=0.40 ms'+nl+'64 bytes from 10.10.60.15: icmp_seq=4 ttl=64 time=0.38 ms'+nl+'4 packets transmitted, 4 received, 0% packet loss'+nl+'✔ Estável e sempre a mesma máquina respondendo. Chamado resolvido.',solve:true}:'64 bytes from 10.10.60.15: icmp_seq=1 ttl=64 time=0.42 ms'+nl+'64 bytes from 10.10.60.15: icmp_seq=2 ttl=128 time=3.10 ms'+nl+'64 bytes from 10.10.60.15: icmp_seq=3 ttl=64 time=0.40 ms'+nl+'64 bytes from 10.10.60.15: icmp_seq=4 ttl=128 time=2.87 ms'+nl+'4 packets transmitted, 4 received, 0% packet loss'+nl+'» Responde sempre, mas o TTL alterna entre 64 e 128. TTL inicial diferente = sistemas diferentes (128 é típico de Windows; impressora usa 64).'},
+ {r:/^(ip neigh( show)?|arp -n|arp -a)$/,f:s=>{s.n++;return '10.10.60.1 dev eth0 lladdr 00:09:0f:aa:60:01 REACHABLE'+nl+'10.10.60.15 dev eth0 lladdr '+(s.fix||s.n%2?'00:1b:a9:44:10:02':'3c:52:82:7e:aa:19')+' REACHABLE'+(s.fix?'':nl+'» Rode de novo e compare o endereço físico (lladdr) do 10.10.60.15.')}},
+ {r:/^tcpdump.*$/,f:s=>'tcpdump: listening on eth0, link-type EN10MB (Ethernet)'+nl+(s.fix?'10:02:11.104 00:1b:a9:44:10:02 > 52:54:00:12:aa:10, ARP, Reply 10.10.60.15 is-at 00:1b:a9:44:10:02'+nl+'10:02:11.106 52:54:00:12:aa:10 > 00:1b:a9:44:10:02, IP 10.10.60.10.48812 > 10.10.60.15.9100: Flags [S]'+nl+'10:02:11.107 00:1b:a9:44:10:02 > 52:54:00:12:aa:10, IP 10.10.60.15.9100 > 10.10.60.10.48812: Flags [S.]'+nl+'» Um só MAC responde, e a porta 9100 aceita a conexão ([S.] = SYN-ACK).':
+  '10:02:11.104 00:1b:a9:44:10:02 > 52:54:00:12:aa:10, ARP, Reply 10.10.60.15 is-at 00:1b:a9:44:10:02'+nl+'10:02:11.105 3c:52:82:7e:aa:19 > 52:54:00:12:aa:10, ARP, Reply 10.10.60.15 is-at 3c:52:82:7e:aa:19'+nl+'10:02:14.220 52:54:00:12:aa:10 > 3c:52:82:7e:aa:19, IP 10.10.60.10.48812 > 10.10.60.15.9100: Flags [S]'+nl+'10:02:14.221 3c:52:82:7e:aa:19 > 52:54:00:12:aa:10, IP 10.10.60.15.9100 > 10.10.60.10.48812: Flags [R.]'+nl+'» Duas máquinas diferentes dizem "eu sou o 10.10.60.15" (ARP Reply com MACs diferentes) = IP DUPLICADO.'+nl+'» Quando o pedido vai para o MAC 3c:52:..., essa máquina recusa a porta 9100 ([R.] = reset). É a impressão que falha.')},
+]},
+{id:'sw',nome:'SW-LAB',host:'Cisco 2960-X',tipo:'ios',ajuda:['show mac address-table address <mac>','show interfaces status','show running-config interface gi1/0/22'],regras:[
+ {r:/^sh(ow)? mac( address-table)? add(ress)? (\S+)$/,f:(s,m)=>{const h=m[4].replace(/[^0-9a-f]/g,'');if(h==='3c52827eaa19')return 'Vlan    Mac Address       Type        Ports'+nl+'  60    3c52.827e.aa19    DYNAMIC     Gi1/0/22'+nl+'» O intruso está na porta Gi1/0/22.';if(h==='001ba9441002')return 'Vlan    Mac Address       Type        Ports'+nl+'  60    001b.a944.1002    DYNAMIC     Gi1/0/5'+nl+'» Essa é a impressora legítima (bate com a etiqueta).';return '» MAC não encontrado. Use um MAC que apareceu na captura. O formato pode ser 3c:52:82:7e:aa:19 ou 3c52.827e.aa19.'}},
+ {r:/^sh(ow)? mac( address-table)?$/,f:()=>'Vlan    Mac Address       Type        Ports'+nl+'  60    001b.a944.1002    DYNAMIC     Gi1/0/5'+nl+'  60    3c52.827e.aa19    DYNAMIC     Gi1/0/22'+nl+'  60    5254.0012.aa10    DYNAMIC     Gi1/0/48'},
+ {r:/^sh(ow)? int(erfaces?)? status$/,f:s=>'Port      Name             Status         Vlan'+nl+'Gi1/0/5   ZEBRA-ETIQ-01    connected      60'+nl+`Gi1/0/22  BANCADA-LAB-04   ${s.fix?'disabled    ':'connected   '}   60`+nl+'Gi1/0/48  UPLINK-SRV       connected      trunk'},
+ {r:/^sh(ow)? run(ning-config)? int(erface)? (\S+)$/,f:(s,m)=>'interface '+m[4]+nl+' switchport access vlan 60'+nl+' switchport mode access'+nl+(normIf(m[4])==='Gi1/0/22'?' description BANCADA-LAB-04 (notebook novo)'+nl:'')+'end'},
+ {r:/^shut(down)?$/,m:'if',f:(s,m,d)=>{if(d.ifc==='Gi1/0/5')return '✖ Você desligou a impressora legítima. Agora o laboratório não imprime nada. Use "no shutdown" nela.';if(d.ifc!=='Gi1/0/22')return '» Essa porta não tem relação com o problema.';s.fix=true;return '%LINK-5-CHANGED: Interface Gi1/0/22, changed state to administratively down'+nl+'» Notebook isolado. Agora acione o responsável para corrigir o IP dele antes de religar.'}},
+ {r:/^no shut(down)?$/,m:'if',f:(s,m,d)=>{if(d.ifc==='Gi1/0/22')s.fix=false;return ''}},
+ {r:/^(description .*)$/,m:'if',f:()=>''},WR]}],
+dicas:['O ping responde, mas olhe o TTL de cada linha. Depois rode <code>ip neigh</code> duas vezes e compare o MAC do 10.10.60.15.','Capture o tráfego: <code>tcpdump -n -e -i eth0 host 10.10.60.15</code>. O <code>-e</code> mostra os MACs. Quantas máquinas respondem pelo mesmo IP?','No switch, <code>show mac address-table address 3c52.827e.aa19</code> mostra a porta do intruso. Isole: <code>conf t</code> → <code>interface gi1/0/22</code> → <code>shutdown</code>. Valide no servidor: <code>ping -c 4 10.10.60.15</code>.'],
+causa:'Um notebook novo de bancada foi configurado com IP fixo igual ao da impressora. Os dois disputavam o 10.10.60.15, e metade dos pedidos ia para o notebook, que recusava a porta 9100.',
+conceito:'ARP liga IP a MAC. Dois MACs respondendo pelo mesmo IP é IP duplicado. A captura (tcpdump no Linux, Wireshark no Windows, que até sinaliza "duplicate use of IP") transforma o "às vezes" em prova. A tabela MAC do switch leva até a porta física do culpado.',
+fala:'"O fornecedor dizia que era rede, então capturei. O tcpdump mostrou duas respostas ARP com MACs diferentes para o IP da impressora. Pela tabela MAC do switch achei a porta do notebook com IP duplicado, isolei e validei com ping estável. Depois pedi reserva de IP no DHCP para evitar repetição."'});
+
+/* ---------- motor ---------- */
+const $=id=>document.getElementById(id);
+let P={}; try{P=JSON.parse(localStorage.getItem('plantao-redes'))||{}}catch(e){P={}}
+function salvar(){try{localStorage.setItem('plantao-redes',JSON.stringify(P))}catch(e){}}
+let R=null; // estado do chamado aberto
+
+function abrir(i){
+  const c=CASOS[i];
+  R={i,c,st:c.init?c.init():{},dev:c.devs[0].id,d:{},log:{},hist:[],hp:0,dicas:0,feito:false};
+  c.devs.forEach(d=>{R.d[d.id]={mode:'exec',ifc:null,ctx:[]};R.log[d.id]=[]});
+  c.devs.forEach(d=>sys(d.id,`Conectado em ${d.nome} (${d.host}). Digite "ajuda" para ver comandos de diagnóstico.`));
+  $('num').textContent=c.num; $('pri').textContent=c.pri; $('pri').className='pri '+c.pri.split(' ')[0];
+  $('area').textContent=c.area; $('titulo').textContent=c.titulo; $('desc').textContent=c.desc;
+  $('meta').innerHTML=c.meta.map(([k,v])=>`<div><b>${k}</b>${v}</div>`).join('');
+  $('topo').textContent=c.topo; $('obj').innerHTML='<b>Seu objetivo:</b> '+c.obj;
+  $('dicas').innerHTML=''; $('deb').hidden=true; $('aviso').textContent='';
+  try{localStorage.setItem('plantao-ultimo',String(i))}catch(e){}
+  lista(); abas(); desenha(); atualizaDica();
+}
+function devAtual(){return R.c.devs.find(d=>d.id===R.dev)}
+function prompt_(d){
+  const s=R.d[d.id];
+  if(d.prompt) return d.prompt(R.st,s);
+  if(d.tipo==='ios') return d.host+(s.mode==='conf'?'(config)#':s.mode==='if'?'(config-if)#':'#');
+  if(d.tipo==='pc') return 'C:\\Users\\'+d.user+'>';
+  if(d.tipo==='linux') return 'root@'+d.host+':~#';
+  if(d.tipo==='fgt') return d.host+(s.ctx.length?' ('+s.ctx[s.ctx.length-1]+')':'')+' #';
+  return '>';
+}
+function push(dev,cls,txt){R.log[dev].push([cls,txt])}
+function sys(dev,t){push(dev,'sys',t)}
+function saida(dev,t){
+  if(!t) return;
+  t.split(nl).forEach(l=>{
+    if(l.startsWith('» ')) push(dev,'note',l);
+    else if(l.startsWith('✔ ')) push(dev,'good',l);
+    else if(l.startsWith('✖ ')) push(dev,'bad',l);
+    else push(dev,'out',l);
+  });
+}
+function executar(raw){
+  const d=devAtual(), s=R.d[d.id];
+  const c=raw.trim().replace(/\s+/g,' ');
+  push(d.id,'cmd',[prompt_(d),c]);
+  if(!c){desenha();return}
+  R.hist.push(c); R.hp=R.hist.length;
+  const lc=c.toLowerCase();
+  if(lc==='ajuda'||lc==='?'||lc==='help'){saida(d.id,'Comandos de diagnóstico neste equipamento:'+nl+d.ajuda.map(a=>'  '+a).join(nl)+nl+'» Os comandos de correção você descobre investigando (ou pedindo dica).');desenha();return}
+  if(lc==='cls'||lc==='clear'||lc==='limpar'){R.log[d.id]=[];desenha();return}
+  let r=null;
+  if(d.tipo==='ios'){
+    const real=s.mode!=='exec'&&lc.startsWith('do ')?lc.slice(3):null;
+    if(/^en(able)?$/.test(lc)) r='';
+    else if(/^conf(ig(ure)?)?( t(erm(inal)?)?)?$/.test(lc)&&s.mode==='exec'){s.mode='conf';r='Enter configuration commands, one per line.  End with CNTL/Z.'+nl+'» Você entrou no modo de configuração global.'}
+    else if(/^(int|interface) /.test(lc)&&s.mode!=='exec'){const f=normIf(lc.replace(/^(int|interface) /,''));if(!f)r='% Invalid input detected'+nl+'» Nome de interface inválido. Exemplo: interface gi1/0/12';else{s.mode='if';s.ifc=f;r='» Configurando a interface '+f+'.'}}
+    else if(lc==='exit'){if(s.mode==='if'){s.mode='conf';s.ifc=null}else if(s.mode==='conf')s.mode='exec';r=''}
+    else if(lc==='end'){s.mode='exec';s.ifc=null;r=''}
+    else r=regra(d,real||lc,real?'exec':s.mode,s);
+    if(r===null){
+      const emExec=s.mode!=='exec'&&acha(d,lc,'exec');
+      r=emExec?'% Invalid input detected'+nl+'» Esse é um comando de consulta. No modo de configuração use "do '+lc+'" ou saia com "end".':'% Invalid input detected at \'^\' marker.'+nl+'» Comando não reconhecido neste modo ('+(s.mode==='exec'?'privilegiado':s.mode==='conf'?'configuração':'interface '+s.ifc)+').';
+    }
+  }else{
+    r=regra(d,lc,'any',s);
+    if(r===null) r=d.tipo==='pc'?`'${c.split(' ')[0]}' não é reconhecido como um comando interno ou externo, um programa operável ou um arquivo em lotes.`+nl+'» Comando não reconhecido. Digite ajuda.':d.tipo==='linux'?`bash: comando não reconhecido`+nl+'» Digite ajuda.':'Command fail. Return code -61'+nl+'» Comando não reconhecido neste contexto. Digite ajuda.';
+  }
+  if(r&&typeof r==='object'){saida(d.id,r.o);if(r.solve)resolver()}
+  else saida(d.id,r);
+  desenha();
+}
+function acha(d,lc,mode){return d.regras.find(x=>(x.m||(d.tipo==='ios'?'exec':'any'))===mode&&x.r.test(lc))}
+function regra(d,lc,mode,s){
+  const x=acha(d,lc,mode); if(!x) return null;
+  const m=lc.match(x.r);
+  return x.f(R.st,m,s);
+}
+function resolver(){
+  if(R.feito) return; R.feito=true;
+  const est=Math.max(1,3-R.dicas);
+  const ant=P[R.c.id]; P[R.c.id]={ok:1,est:Math.max(est,ant?ant.est:0)}; salvar();
+  const c=R.c;
+  $('deb').innerHTML=`<h2>Chamado resolvido</h2><div class="estrelas">${'★'.repeat(est)}${'☆'.repeat(3-est)} · ${R.dicas} dica(s) usada(s)</div>
+  <h3>Causa raiz</h3><p>${c.causa}</p><h3>O conceito por trás</h3><p>${c.conceito}</p>
+  <h3>Como explicar numa entrevista</h3><p class="fala">${c.fala}</p>
+  ${R.i<CASOS.length-1?'<div><button class="btn" id="bProx" type="button">Próximo chamado</button></div>':'<p><b>Fila zerada.</b> Refaça os chamados sem dica até tirar 3 estrelas em todos.</p>'}`;
+  $('deb').hidden=false; lista();
+  const b=$('bProx'); if(b) b.onclick=()=>{abrir(R.i+1);window.scrollTo({top:0,behavior:'smooth'})};
+  setTimeout(()=>$('deb').scrollIntoView({behavior:'smooth',block:'start'}),300);
+}
+function lista(){
+  const ok=CASOS.filter(c=>P[c.id]).length;
+  $('prog').innerHTML=`${ok} de ${CASOS.length} resolvidos<i><em style="width:${ok/CASOS.length*100}%"></em></i>`;
+  $('lista').innerHTML=CASOS.map((c,i)=>`<li><button type="button" data-i="${i}" aria-current="${R&&R.i===i}"><span class="l1"><span class="pri ${c.pri.split(' ')[0]}">${c.pri.split(' ')[0]}</span>${c.area}${P[c.id]?`<span class="ok">${'★'.repeat(P[c.id].est)}</span>`:''}</span><span class="l2">${c.titulo}</span></button></li>`).join('');
+  $('lista').querySelectorAll('button').forEach(b=>b.onclick=()=>abrir(+b.dataset.i));
+}
+function abas(){
+  $('abas').innerHTML=R.c.devs.map(d=>`<button type="button" data-d="${d.id}" aria-pressed="${d.id===R.dev}">${d.nome}<small>${d.host}</small></button>`).join('');
+  $('abas').querySelectorAll('button').forEach(b=>b.onclick=()=>{R.dev=b.dataset.d;abas();desenha();$('cmd').focus()});
+}
+function esc(t){return t.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))}
+function desenha(){
+  const d=devAtual();
+  $('tela').innerHTML=R.log[d.id].map(([k,t])=>k==='cmd'?`<div><span class="pr">${esc(t[0])}</span> <span class="cmd">${esc(t[1])}</span></div>`:`<div class="${k}">${esc(t)||' '}</div>`).join('');
+  $('tela').scrollTop=$('tela').scrollHeight;
+  $('prompt').textContent=prompt_(d);
+  $('chips').innerHTML='<span>atalhos:</span>'+d.ajuda.map(a=>`<button type="button">${esc(a)}</button>`).join('');
+  $('chips').querySelectorAll('button').forEach(b=>b.onclick=()=>{const v=b.textContent;$('cmd').value=v.replace(/<[^>]*>/g,'').replace(/\s+$/,'');$('cmd').focus()});
+}
+function atualizaDica(){
+  const n=R.c.dicas.length;
+  $('bDica').textContent=R.dicas<n?`Pedir dica (${n-R.dicas} restante${n-R.dicas>1?'s':''})`:'Sem mais dicas';
+  $('bDica').disabled=R.dicas>=n;
+}
+$('bDica').onclick=()=>{
+  if(R.dicas>=R.c.dicas.length) return;
+  const t=R.c.dicas[R.dicas]; R.dicas++;
+  $('dicas').insertAdjacentHTML('beforeend',`<div class="dica"><b>DICA ${R.dicas}</b>${t}</div>`);
+  atualizaDica();
+};
+$('bReset').onclick=()=>abrir(R.i);
+$('form').onsubmit=e=>{e.preventDefault();const v=$('cmd').value;$('cmd').value='';executar(v)};
+$('cmd').addEventListener('keydown',e=>{
+  if(e.key==='ArrowUp'&&R.hp>0){R.hp--;$('cmd').value=R.hist[R.hp];e.preventDefault()}
+  if(e.key==='ArrowDown'){R.hp=Math.min(R.hist.length,R.hp+1);$('cmd').value=R.hist[R.hp]||'';e.preventDefault()}
+});
+let ini=0; try{ini=+localStorage.getItem('plantao-ultimo')||0}catch(e){}
+abrir(Math.min(ini,CASOS.length-1));
+</script>
+
+</body></html>
