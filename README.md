@@ -32,11 +32,12 @@ Modos: **Plantão** (SLA por prioridade, 3 vidas, pontos e recorde) e **Treino**
 (`python3 -m http.server`).
 
 ```bash
+node testes/teste-aulas.js   # executa cada aula do Trainee digitando os comandos
 node testes/teste-motor.js   # quebra cada defeito, corrige digitando os comandos nos consoles e valida a rede
 ```
 
 ## Fases
 1. ✅ Motor de rede real + mapa da topologia + gerador de defeitos aleatórios
-   - ✅ Trilha de 16 módulos em 3 níveis (Básico, Intermediário, Avançado), com teoria mínima, desbloqueio e estrelas; Plantão usa só os níveis liberados
+   - ✅ Trilha Trainee → Júnior → Pleno: 9 aulas guiadas do zero (IP, ping, gateway, DNS, switch, VLAN, trunk, core, firewall) + 16 chamados reais com desbloqueio e estrelas; Plantão usa só o que já foi liberado
 2. Captura estilo Wireshark + gestão de mudança com rollback
 3. Modo Construir + diagnóstico de pontos fracos + entrevista simulada

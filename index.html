@@ -166,6 +166,11 @@ details.doc summary{cursor:pointer;font-weight:600;font-size:.9rem;color:var(--a
 .como{display:grid;gap:6px;padding-left:20px;margin:0}
 .lnk{background:none;border:0;padding:0;color:var(--accent);text-decoration:underline;cursor:pointer;font-size:inherit}
 @media (max-width:560px){.opcoes{grid-template-columns:1fr}}
+.faca{background:var(--p3s);border-radius:10px;padding:10px 13px}.faca .rot,.certo .rot{display:block;font:600 .72rem var(--mono);letter-spacing:.06em}.faca .rot{color:var(--p3)}
+.faca code,.certo code{cursor:pointer;border:1px solid transparent}.faca code:hover{border-color:var(--accent)}
+.certo{background:var(--oks);border-radius:10px;padding:10px 13px}.certo .rot{color:var(--ok)}
+.pequeno{font-size:.82rem;margin:0 0 4px}
+.brilha{animation:brilha .9s}@keyframes brilha{0%{box-shadow:0 0 0 0 var(--ok)}100%{box-shadow:0 0 0 14px transparent}}
 .grande{font:800 2.6rem/1 var(--display);font-stretch:80%;color:var(--accent)}
 @media (max-width:1000px){.mesa{grid-template-columns:1fr}.tela{height:320px}.sla{width:120px}}
 @media (max-width:560px){.topo{position:static}.hud .chip.opc{display:none}.modos{grid-template-columns:1fr}.card{padding:14px}}
@@ -205,7 +210,7 @@ details.doc summary{cursor:pointer;font-weight:600;font-size:.9rem;color:var(--a
       <form class="linha" id="form"><label for="cmd" id="prompt"></label><input id="cmd" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="send" placeholder="digite um comando (ajuda)"></form>
       <div class="chips" id="chips"></div>
     </div>
-    <div class="acoes">
+    <div class="acoes" id="acoesCh">
       <button class="btn" id="bFechar" type="button">Encerrar chamado</button>
       <button class="btn sec" id="bDica" type="button">Pedir dica</button>
       <button class="btn perigo" id="bDesistir" type="button">Ver solução</button>
@@ -225,7 +230,7 @@ details.doc summary{cursor:pointer;font-weight:600;font-size:.9rem;color:var(--a
       <div class="opcoes">
         <button class="op prim" id="mVoltar" type="button" hidden><b>Voltar ao chamado</b><small id="mVoltarTxt"></small></button>
         <button class="op prim" id="mCont" type="button"><b id="mContT">Começar a trilha</b><small id="mContS"></small></button>
-        <button class="op" id="mTrilha" type="button"><b>Trilha de módulos</b><small>16 módulos em 3 níveis. Cada um libera o próximo. Repita os concluídos para tirar 3 estrelas.</small></button>
+        <button class="op" id="mTrilha" type="button"><b>Trilha de módulos</b><small>Trainee (aulas passo a passo, do zero) → Júnior → Pleno (chamados reais). Cada etapa libera a próxima.</small></button>
         <button class="op" id="mPlantao" type="button"><b>Plantão</b><small id="mPlantaoS"></small></button>
         <button class="op" id="mTreino" type="button"><b>Treino livre</b><small>Repita qualquer módulo já concluído, sem tempo.</small></button>
         <button class="op" id="mComo" type="button"><b>Como jogar</b><small>Consoles, mapa, dicas, pontos e atalhos.</small></button>
@@ -266,6 +271,7 @@ details.doc summary{cursor:pointer;font-weight:600;font-size:.9rem;color:var(--a
 
 <script src="motor.js"></script>
 <script src="cli.js"></script>
+<script src="aulas.js"></script>
 <script>
 'use strict';
 const $=id=>document.getElementById(id);
@@ -285,7 +291,7 @@ function bip(tipo){if(!G.som)return;try{AC=AC||new (window.AudioContext||window.
   for(const[f,d]of seq){if(f){const o=AC.createOscillator(),g=AC.createGain();o.type=tipo==='erro'?'sawtooth':'sine';o.frequency.value=f;g.gain.setValueAtTime(tipo==='cmd'?.02:.08,t);g.gain.exponentialRampToValueAtTime(.0001,t+d);o.connect(g).connect(AC.destination);o.start(t);o.stop(t+d)}t+=d}}catch(e){}}
 
 /* ---------- trilha de módulos ---------- */
-const NIVEL_NOME={1:'Básico',2:'Intermediário',3:'Avançado'};
+const FAIXA={0:'Trainee',1:'Júnior',2:'Pleno'};const FAIXA_TXT={0:'Aulas guiadas: você digita, vê o resultado e entende. Não precisa saber nada.',1:'Chamados reais, sem passo a passo. Dicas à vontade.',2:'Chamados que pedem raciocínio de analista pleno: STP, LACP, ACL e firewall.'};
 const MODS=[
  {id:'gw',t:'O PC e o endereço IP',obj:'Descobrir por que um equipamento fala com a própria sala, mas não sai dela.',teo:'Todo equipamento precisa de 4 coisas: IP, máscara, gateway e DNS. A máscara diz quem está "na mesma rede". Para falar com qualquer outra rede, o pacote vai para o gateway, a porta de saída. Gateway errado = funciona dentro da sala e falha fora dela.',cmd:['ipconfig /all','ping 10.10.10.1','ping 8.8.8.8','tracert 8.8.8.8','rede mostrar (tomógrafo)']},
  {id:'dns',t:'Nome × endereço (DNS)',obj:'Separar "a rede caiu" de "o nome não resolve".',teo:'Pessoas usam nomes (pacs.hvc.local); a rede usa IPs. O DNS traduz um no outro. Se o ping por IP funciona e por nome não, o problema é DNS, não cabo nem switch.',cmd:['ping 8.8.8.8','ping google.com','nslookup pacs.hvc.local','ipconfig /all']},
@@ -303,35 +309,65 @@ const MODS=[
  {id:'fwpol',t:'FortiGate: política',obj:'Ver por que o firewall barrou o tráfego.',teo:'O firewall só deixa passar o que uma política permite (origem, destino, serviço). Nenhuma política casou = negação implícita (policy 0). O debug flow mostra a decisão pacote a pacote.',cmd:['tracert 8.8.8.8','diagnose debug flow trace start 10','show firewall policy','config firewall policy']},
  {id:'fwnat',t:'FortiGate: NAT',obj:'Ler uma captura e perceber o NAT faltando.',teo:'IP privado (10.x) não anda na internet. O NAT troca a origem pelo IP público do firewall na saída e desfaz na volta. Sem NAT o pacote sai, mas a resposta nunca volta.',cmd:["diagnose sniffer packet any 'icmp' 4",'show firewall policy','set nat enable']},
  {id:'fwrota',t:'FortiGate: rota de retorno',obj:'Pensar em ida E volta.',teo:'O firewall precisa de rota para as redes internas. Sem ela, descarta o pacote na checagem de caminho reverso (RPF). Pista clássica: o core navega e os PCs não.',cmd:['get router info routing-table all','diagnose debug flow trace start 10','config router static']}];
-MODS.forEach((m,i)=>{m.i=i;m.nivel=Motor.DEFEITOS.find(f=>f.id===m.id).nivel;m.area=Motor.DEFEITOS.find(f=>f.id===m.id).area});
+const JUNIOR=['gw','dns','shut','vlan','bpdu','trunk','vlandb','svi'];
+MODS.forEach(m=>{const f=Motor.DEFEITOS.find(x=>x.id===m.id);m.tipo='caso';m.nivel=f.nivel;m.area=f.area;m.faixa=JUNIOR.includes(m.id)?1:2});
+MODS.unshift(...Aulas.AULAS.map(a=>Object.assign({tipo:'aula',faixa:0,nivel:0},a)));
+MODS.forEach((m,i)=>m.i=i);
+const rotulo=m=>(m.tipo==='aula'?'Aula ':'Chamado ')+(m.i+1);
 let PROG=ls.get('progresso',{});
 const feito=m=>!!PROG[m.id];
-const liberado=m=>m.i===0||feito(MODS[m.i-1]);
+const liberado=m=>m.i===0||feito(m)||feito(MODS[m.i-1]);
 const proxMod=()=>MODS.find(m=>!feito(m))||null;
-const nivelLib=()=>Math.max(...MODS.filter(liberado).map(m=>m.nivel));
+const nivelLib=()=>Math.max(0,...MODS.filter(m=>m.tipo==='caso'&&liberado(m)).map(m=>m.nivel));
 function mostrarView(v){['vHome','vTrilha','vTreino','vComo'].forEach(x=>$(x).hidden=x!==v);$('ovMenu').scrollTop=0}
 function abrirMenu(){if(G.ativo&&!G.resolvido&&G.modo==='plantao'&&!G.pausado)G.pausado=true;G.noMenu=true;montarMenu();mostrarView('vHome');$('ovMenu').hidden=false;$('ovPausa').hidden=true;$('ovFim').hidden=true;$('ovIntro').hidden=true}
 function fecharMenu(){$('ovMenu').hidden=true;G.noMenu=false}
-function montarMenu(){$('iRec').textContent=G.rec;const n=MODS.filter(feito).length;$('pTxt').textContent=`Trilha: ${n} de ${MODS.length} módulos`;$('pNiv').textContent='Nível liberado: '+NIVEL_NOME[nivelLib()];$('pBar').style.width=(n/MODS.length*100)+'%';
-  const pm=proxMod();if(pm){$('mContT').textContent=n?'Continuar a trilha':'Começar a trilha';$('mContS').textContent=`Módulo ${pm.i+1} · ${pm.t} (${NIVEL_NOME[pm.nivel]})`}else{$('mContT').textContent='Trilha concluída!';$('mContS').textContent='Agora é Plantão: tente bater seu recorde.'}
-  $('mPlantaoS').textContent=`Chamados aleatórios com SLA e 3 vidas. Usa só o que você já liberou: nível ${NIVEL_NOME[nivelLib()]}.`;
-  const em=G.ativo&&!G.resolvido&&G.ch;$('mVoltar').hidden=!em;if(em)$('mVoltarTxt').textContent=`${G.ch.num} · ${G.ch.defeitos[0].ticket.titulo}`;
+function montarMenu(){$('iRec').textContent=G.rec;const n=MODS.filter(feito).length;const pm=proxMod();
+  $('pTxt').textContent=`Trilha: ${n} de ${MODS.length} etapas`;$('pNiv').textContent='Você está no: '+FAIXA[(pm||MODS[MODS.length-1]).faixa];$('pBar').style.width=(n/MODS.length*100)+'%';
+  if(pm){$('mContT').textContent=n?'Continuar a trilha':'Começar do zero';$('mContS').textContent=`${rotulo(pm)} · ${pm.t} (${FAIXA[pm.faixa]})`}else{$('mContT').textContent='Trilha concluída!';$('mContS').textContent='Agora é Plantão: tente bater seu recorde.'}
+  const nl=nivelLib();$('mPlantao').disabled=!nl;$('mPlantaoS').textContent=nl?`Chamados aleatórios com SLA e 3 vidas, só com o que você já liberou (${nl>=3?'tudo':nl===2?'até o nível intermediário':'casos básicos'}).`:'Libera quando você terminar as aulas do Trainee.';
+  const emCh=G.ativo&&!G.resolvido&&G.ch,emAula=G.ativo&&!G.resolvido&&G.modo==='aula';$('mVoltar').hidden=!(emCh||emAula);
+  if(emCh)$('mVoltarTxt').textContent=`${G.ch.num} · ${G.ch.defeitos[0].ticket.titulo}`;if(emAula)$('mVoltarTxt').textContent=`Aula: ${MODS[G.mod].t} (passo ${G.passo+1})`;
   $('mTreino').disabled=!n;
-  let h='';for(const nv of[1,2,3]){const ms=MODS.filter(m=>m.nivel===nv);h+=`<div class="nivel"><span>Nível ${nv} · ${NIVEL_NOME[nv]}</span><span>${ms.filter(feito).length}/${ms.length}</span></div><div class="mods">`;
-    ms.forEach(m=>{const l=liberado(m),f=feito(m),p=pm&&pm.id===m.id;h+=`<button class="mod ${p?'prox':''}" type="button" data-m="${m.i}" ${l?'':'disabled'}><span class="n"><span>Módulo ${m.i+1}</span><span class="e">${f?'★'.repeat(PROG[m.id].est)+'☆'.repeat(3-PROG[m.id].est):l?'novo':'🔒'}</span></span><b>${esc(m.t)}</b></button>`});h+='</div>'}
+  let h='';for(const fx of[0,1,2]){const ms=MODS.filter(m=>m.faixa===fx);h+=`<div class="nivel"><span>${FAIXA[fx]}</span><span>${ms.filter(feito).length}/${ms.length}</span></div><p class="mute pequeno">${FAIXA_TXT[fx]}</p><div class="mods">`;
+    ms.forEach(m=>{const l=liberado(m),f=feito(m),p=pm&&pm.id===m.id;h+=`<button class="mod ${p?'prox':''}" type="button" data-m="${m.i}" ${l?'':'disabled'}><span class="n"><span>${rotulo(m)}</span><span class="e">${f?'★'.repeat(PROG[m.id].est)+'☆'.repeat(3-PROG[m.id].est):l?'novo':'🔒'}</span></span><b>${esc(m.t)}</b></button>`});h+='</div>'}
   $('trilha').innerHTML=h;$('trilha').querySelectorAll('.mod').forEach(b=>b.onclick=()=>intro(+b.dataset.m));
-  $('treinoLista').innerHTML=MODS.filter(feito).map(m=>`<button class="mod" type="button" data-m="${m.i}"><span class="n"><span>Módulo ${m.i+1}</span><span class="e">${'★'.repeat(PROG[m.id].est)}</span></span><b>${esc(m.t)}</b></button>`).join('')||'<p class="mute">Conclua o primeiro módulo da trilha.</p>';
-  $('treinoLista').querySelectorAll('.mod').forEach(b=>b.onclick=()=>iniciar('treino',+b.dataset.m))}
-function intro(i){const m=MODS[i];$('introCard').innerHTML=`<div class="intro" style="display:grid;gap:10px">
-  <div class="cab" style="font:600 .76rem var(--mono);color:var(--mute)">Módulo ${i+1} de ${MODS.length} · Nível ${m.nivel} · ${NIVEL_NOME[m.nivel]}</div>
+  $('treinoLista').innerHTML=MODS.filter(feito).map(m=>`<button class="mod" type="button" data-m="${m.i}"><span class="n"><span>${rotulo(m)}</span><span class="e">${'★'.repeat(PROG[m.id].est)}</span></span><b>${esc(m.t)}</b></button>`).join('')||'<p class="mute">Conclua a primeira aula da trilha.</p>';
+  $('treinoLista').querySelectorAll('.mod').forEach(b=>b.onclick=()=>{const m=MODS[+b.dataset.m];m.tipo==='aula'?iniciarAula(m.i):iniciar('treino',m.i)})}
+function intro(i){const m=MODS[i];if(m.tipo==='aula'){$('introCard').innerHTML=`<div class="intro" style="display:grid;gap:10px">
+  <div class="cab" style="font:600 .76rem var(--mono);color:var(--mute)">${rotulo(m)} de ${MODS.length} · Trainee</div><h2>${esc(m.t)}</h2><h3>Nesta aula</h3><p>${esc(m.obj)}</p>
+  <p class="teoria">Passo a passo: o texto explica o mínimo, você digita o comando no console da direita e vê o resultado na rede. Clique em qualquer comando destacado para copiá-lo.</p>
+  ${m.i===0?'<p class="mute">Não sabe nada de rede? Perfeito, foi feito para começar daqui.</p>':''}
+  <div class="acoes"><button class="btn" id="iGo" type="button">Começar a aula</button><button class="btn sec" id="iBack" type="button">Voltar</button></div></div>`;
+  $('ovIntro').hidden=false;$('iGo').onclick=()=>iniciarAula(i);$('iBack').onclick=()=>{$('ovIntro').hidden=true};return}
+  $('introCard').innerHTML=`<div class="intro" style="display:grid;gap:10px">
+  <div class="cab" style="font:600 .76rem var(--mono);color:var(--mute)">${rotulo(m)} de ${MODS.length} · ${FAIXA[m.faixa]}</div>
   <h2>${esc(m.t)}</h2><h3>Objetivo</h3><p>${esc(m.obj)}</p><h3>O mínimo de teoria</h3><p class="teoria">${esc(m.teo)}</p>
   <h3>Comandos que você vai usar</h3><div class="cmds">${m.cmd.map(c=>`<code>${esc(c)}</code>`).join('')}</div>
-  ${i===0?'<p class="mute">Primeira vez? Os consoles ficam à direita: troque de equipamento pelas abas ou clicando no mapa, e use os botões "atalhos" para preencher comandos.</p>':''}
+  ${m.id==='gw'?'<p class="mute">Primeiro chamado sem passo a passo! Comece pelo PC citado no chamado (ipconfig, ping). Travou? Peça dica, é para isso que ela existe.</p><p class="mute">Lembre: Os consoles ficam à direita: troque de equipamento pelas abas ou clicando no mapa, e use os botões "atalhos" para preencher comandos.</p>':''}
   <p class="mute">Sem tempo. Tente sozinho primeiro; cada dica tira uma estrela, não pontos.</p>
   <div class="acoes"><button class="btn" id="iGo" type="button">Abrir o chamado</button><button class="btn sec" id="iBack" type="button">Voltar</button></div></div>`;
   $('ovIntro').hidden=false;$('iGo').onclick=()=>iniciar('modulo',i);$('iBack').onclick=()=>{$('ovIntro').hidden=true}}
 function iniciar(modo,i){const m=i!=null?MODS[i]:null;Object.assign(G,{modo,mod:i,forcar:m?m.id:null,nivelMax:modo==='plantao'?nivelLib():3,n:0,pts:0,vidas:3,resolvidos:0,recentes:[],ativo:true,pausado:false});
   $('ovIntro').hidden=true;fecharMenu();proximo()}
+function iniciarAula(i){const m=MODS[i];Object.assign(G,{modo:'aula',mod:i,passo:0,passoOk:false,ativo:true,pausado:false,resolvido:false,ch:null,n:0,st:Motor.criarRede(),log:{},hist:{},hp:{},anim:null,fx:[],aberto:performance.now()});
+  G.dev=m.dev;for(const id of ABAS)G.log[id]=[['sys',boasVindas(id)]];$('ovIntro').hidden=true;fecharMenu();$('dicas').innerHTML='';$('deb').hidden=true;$('acoesCh').hidden=true;
+  aulaRender();abas();tela();mapa();hud();bip('novo');window.scrollTo({top:0,behavior:'smooth'})}
+function aulaRender(){const m=MODS[G.mod],p=m.passos[G.passo],ult=G.passo===m.passos.length-1;
+  let h=`<div class="cab"><span>${rotulo(m)}</span><span class="pri P3">Trainee</span><span>passo ${G.passo+1} de ${m.passos.length}</span></div><h1>${esc(m.t)}</h1><p>${p.txt}</p>`;
+  if(p.faca)h+=`<div class="faca"><b class="rot">FAÇA</b>${p.faca}</div>`;
+  if(p.ok&&G.passoOk)h+=`<div class="certo"><b class="rot">✓ ISSO!</b>${p.depois}</div>`;
+  if(!p.ok||G.passoOk)h+=`<div class="acoes"><button class="btn" id="bPasso" type="button">${ult?'Concluir aula':'Próximo passo →'}</button></div>`;
+  else h+='<p class="mute pequeno">Clique num comando destacado para copiá-lo para o console e aperte Enter. Errou a digitação? Sem problema, digite de novo.</p>';
+  $('ticket').innerHTML=h;$('ticket').querySelectorAll('.faca code,.certo code').forEach(c=>{c.title='Clique para copiar para o console';c.onclick=()=>{$('cmd').value=c.textContent;$('cmd').focus()}});
+  const b=$('bPasso');if(b)b.onclick=()=>{if(ult)return concluirAula();G.passo++;G.passoOk=false;aulaRender();$('ticket').scrollIntoView({behavior:'smooth',block:'start'})}}
+function verificaAula(dev,v,R){if(G.modo!=='aula'||G.resolvido)return;const p=MODS[G.mod].passos[G.passo];if(!p.ok||G.passoOk)return;let ok=false;try{ok=p.ok({dev,cmd:v.trim().toLowerCase(),R,st:G.st})}catch(e){}
+  if(ok){G.passoOk=true;aulaRender();setTimeout(()=>bip('ok'),120);const t=$('ticket');t.classList.remove('brilha');void t.offsetWidth;t.classList.add('brilha')}}
+function concluirAula(){const m=MODS[G.mod];const novo=salvarModulo(3);G.resolvido=true;const prox=MODS[m.i+1];
+  let h=`<h2>Aula concluída!</h2>`;if(novo&&prox)h+=`<p class="fala">Liberado: <b>${rotulo(prox)} · ${esc(prox.t)}</b>.${prox.faixa>m.faixa?` Você chegou ao <b>${FAIXA[prox.faixa]}</b>: agora são chamados reais, sem passo a passo. Use as dicas sem medo.`:''}</p>`;
+  h+=`<div class="acoes">${prox?'<button class="btn" id="bProx" type="button">Próxima etapa</button>':''}<button class="btn sec" id="bRep" type="button">Refazer aula</button><button class="btn sec" id="bMenu2" type="button">Menu</button></div>`;
+  const d=$('deb');d.innerHTML=h;d.hidden=false;if(prox)$('bProx').onclick=()=>intro(prox.i);$('bRep').onclick=()=>iniciarAula(m.i);$('bMenu2').onclick=abrirMenu;burst(POS.CORE[0],POS.CORE[1],'var(--accent)',26);bip('ok');
+  setTimeout(()=>d.scrollIntoView({behavior:'smooth',block:'start'}),200)}
 function salvarModulo(est){const m=MODS[G.mod];const antes=PROG[m.id]?PROG[m.id].est:0;PROG[m.id]={est:Math.max(antes,est)};ls.set('progresso',PROG);return!antes}
 
 /* ---------- chamado ---------- */
@@ -340,7 +376,7 @@ function proximo(){G.n++;const seed=((Date.now()>>>0)^Math.imul(G.n,2654435761))
   Object.assign(G,{slaMax:SLA[G.ch.pri],sla:SLA[G.ch.pri],estourou:false,dicas:0,reab:0,resolvido:false,log:{},hist:{},hp:{},anim:null,fx:[],aberto:performance.now()});
   const eq=G.ch.defeitos[0].ticket.equip;G.dev=ABAS.find(id=>eq.includes(G.st.devs[id].nome))||'RECEP';
   for(const id of ABAS)G.log[id]=[['sys',boasVindas(id)]];
-  $('dicas').innerHTML='';$('deb').hidden=true;$('bFechar').disabled=false;$('bDica').disabled=false;$('bDesistir').disabled=false;
+  $('dicas').innerHTML='';$('deb').hidden=true;$('acoesCh').hidden=false;$('bFechar').disabled=false;$('bDica').disabled=false;$('bDesistir').disabled=false;
   $('bDesistir').textContent=G.modo==='plantao'?'Ver solução (perde 1 vida)':'Ver solução';$('bDica').dataset.custo=G.modo==='plantao'?' · −40':' · −1 ★';
   ticket();abas();tela();mapa();hud();atualizaDica();bip('novo');window.scrollTo({top:0,behavior:'smooth'})}
 function boasVindas(id){const d=G.st.devs[id];
@@ -351,7 +387,7 @@ function boasVindas(id){const d=G.st.devs[id];
   if(d.tipo==='sw')return`Conectado pelo cabo de console (azul) ao ${d.nome} no rack do andar.`;
   return'Conectado via SSH a FGT-HVC (10.10.0.1).'}
 function ticket(){const ch=G.ch,t0=ch.defeitos[0].ticket;const hora=new Date();hora.setMinutes(hora.getMinutes()-3);
-  let h=`<div class="cab"><span>${esc(ch.num)}</span><span class="pri ${ch.pri}">${PRI_TXT[ch.pri]}</span><span>${G.modo==='modulo'?'módulo '+(G.mod+1)+' · '+esc(MODS[G.mod].t):G.modo==='treino'?'treino · '+esc(MODS[G.mod].t):'plantão · nível '+ch.nivel}</span></div>
+  let h=`<div class="cab"><span>${esc(ch.num)}</span><span class="pri ${ch.pri}">${PRI_TXT[ch.pri]}</span><span>${G.modo==='modulo'?FAIXA[MODS[G.mod].faixa]+' · '+esc(MODS[G.mod].t):G.modo==='treino'?'treino · '+esc(MODS[G.mod].t):'plantão · nível '+ch.nivel}</span></div>
   <h1>${esc(t0.titulo)}</h1><p>${esc(t0.desc)}</p>
   <div class="meta"><div><b>Solicitante</b>${esc(t0.solicitante)}</div><div><b>Equipamento citado</b>${esc(t0.equip)}</div><div><b>Aberto às</b>${hora.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</div></div>`;
   ch.defeitos.slice(1).forEach(x=>{h+=`<div class="vinc"><b>Chamado vinculado (${x.ticket.pri}):</b> ${esc(x.ticket.titulo)}. ${esc(x.ticket.desc)}</div>`});
@@ -381,7 +417,7 @@ function tela(){const id=G.dev;const linhas=G.log[id]||[];
 function enviar(v){if(!G.ativo||G.pausado||!G.st)return;const id=G.dev;G.st.relogio=Math.round((performance.now()-G.aberto)/1000)+420;
   const r=CLI.executar(G.st,id,v);(G.hist[id]=G.hist[id]||[]).push(v);G.hp[id]=G.hist[id].length;
   if(r.limpar)G.log[id]=[];else{G.log[id].push(...r.linhas);if(G.log[id].length>600)G.log[id]=G.log[id].slice(-600)}
-  tela();if(r.mudou)abas();mapa();if(r.anim&&r.anim.trilha&&r.anim.trilha.length)animar(r.anim);bip('cmd')}
+  tela();if(r.mudou)abas();mapa();if(r.anim&&r.anim.trilha&&r.anim.trilha.length)animar(r.anim);bip('cmd');verificaAula(id,v,r)}
 
 /* ---------- mapa ao vivo ---------- */
 function estadoLink(ix){const st=G.st,L=st.l2,lk=L.link[ix],l=st.links[ix];if(!lk.up)return'down';if(lk.lacp&&!lk.lacp.compat)return'susp';
@@ -421,7 +457,7 @@ function passoFx(dt){const g=$('fx');if(!g)return;if(!G.fx.length){if(g.childEle
 /* ---------- HUD, SLA, dicas ---------- */
 const mmss=s=>{s=Math.max(0,Math.ceil(s));return String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0')};
 function hud(){$('bPausa').hidden=G.modo!=='plantao'||!G.ativo;$('hPts').parentNode.hidden=G.modo!=='plantao';$('hN').textContent=G.n||'–';$('hNiv').textContent=G.ch?G.ch.nivel:'–';$('hPts').textContent=G.pts;$('hRec').textContent=G.rec;
-  $('hVidas').style.color=G.modo!=='plantao'?'var(--mute)':'';$('hVidas').textContent=G.modo==='modulo'?'módulo '+(G.mod+1):G.modo==='treino'?'treino':'♥'.repeat(G.vidas)+'♡'.repeat(3-G.vidas);
+  $('hVidas').style.color=G.modo!=='plantao'?'var(--mute)':'';$('hVidas').textContent=G.modo==='aula'?'aula '+(G.mod+1):G.modo==='modulo'?'chamado '+(G.mod+1):G.modo==='treino'?'treino':'♥'.repeat(G.vidas)+'♡'.repeat(3-G.vidas);
   if(G.modo!=='plantao'||!G.ch){$('slaTxt').textContent='sem SLA';$('slaBar').style.width='0%';return}
   $('slaBar').style.width=(G.sla/G.slaMax*100)+'%';$('slaTxt').textContent=G.estourou?'SLA estourado':'SLA '+mmss(G.sla);$('sla').classList.toggle('alerta',G.sla<60||G.estourou)}
 function todasDicas(){return G.ch.defeitos.flatMap(x=>x.f.dicas(x.ctx))}
@@ -450,9 +486,9 @@ function debrief(ok,p){const d=$('deb');const ch=G.ch;const tempo=mmss((performa
   else if(G.modo==='plantao')h+=`<p class="aviso">Ver a solução custou 1 vida. Refaça este tipo de defeito no modo Treino até resolver sem dica.</p>`;
   const bt=[];const prox=G.mod!=null?MODS[G.mod+1]:null;
   if(G.modo==='plantao')bt.push(['bProx',G.vidas<=0?'Ver resultado':'Próximo chamado',()=>G.vidas<=0?fimDeJogo():proximo()]);
-  else if(G.modo==='modulo'&&ok){if(p_novo&&prox)h+=`<p class="fala"><b>Módulo concluído!</b> Liberado: Módulo ${prox.i+1} · ${esc(prox.t)}.${prox.nivel>MODS[G.mod].nivel?` Você chegou ao nível ${NIVEL_NOME[prox.nivel]}.`:''}</p>`;
-    if(prox&&liberado(prox))bt.push(['bProx','Próximo módulo',()=>intro(prox.i)]);bt.push(['bRep','Repetir este módulo',()=>proximo(),true])}
-  else bt.push(['bProx',G.modo==='modulo'?'Tentar outro chamado deste módulo':'Outro chamado',()=>proximo()]);
+  else if(G.modo==='modulo'&&ok){if(p_novo&&prox)h+=`<p class="fala"><b>Etapa concluída!</b> Liberado: ${rotulo(prox)} · ${esc(prox.t)}.${prox.faixa>MODS[G.mod].faixa?` Você chegou ao <b>${FAIXA[prox.faixa]}</b>.`:''}</p>`;
+    if(prox&&liberado(prox))bt.push(['bProx','Próxima etapa',()=>intro(prox.i)]);bt.push(['bRep','Repetir',()=>proximo(),true])}
+  else bt.push(['bProx',G.modo==='modulo'?'Tentar outro chamado igual':'Outro chamado',()=>proximo()]);
   bt.push(['bMenu2','Menu',abrirMenu,true]);
   h+=`<div class="acoes">${bt.map(b=>`<button class="btn ${b[3]?'sec':''}" id="${b[0]}" type="button">${b[1]}</button>`).join('')}</div>`;
   d.innerHTML=h;d.hidden=false;$('bFechar').disabled=true;$('bDica').disabled=true;$('bDesistir').disabled=true;
