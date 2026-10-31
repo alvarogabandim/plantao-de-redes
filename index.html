@@ -171,6 +171,8 @@ details.doc summary{cursor:pointer;font-weight:600;font-size:.9rem;color:var(--a
 .certo{background:var(--oks);border-radius:10px;padding:10px 13px}.certo .rot{color:var(--ok)}
 .pequeno{font-size:.82rem;margin:0 0 4px}
 .brilha{animation:brilha .9s}@keyframes brilha{0%{box-shadow:0 0 0 0 var(--ok)}100%{box-shadow:0 0 0 14px transparent}}
+.roteiro{background:var(--p3s);border-radius:10px;padding:10px 13px}.roteiro .rot{display:block;font:600 .72rem var(--mono);letter-spacing:.06em;color:var(--p3)}.roteiro ol{margin:4px 0;padding-left:20px;display:grid;gap:4px;font-size:.92rem}
+.doc details{margin-top:6px}.doc details summary{font-size:.84rem}
 .grande{font:800 2.6rem/1 var(--display);font-stretch:80%;color:var(--accent)}
 @media (max-width:1000px){.mesa{grid-template-columns:1fr}.tela{height:320px}.sla{width:120px}}
 @media (max-width:560px){.topo{position:static}.hud .chip.opc{display:none}.modos{grid-template-columns:1fr}.card{padding:14px}}
@@ -391,19 +393,28 @@ function ticket(){const ch=G.ch,t0=ch.defeitos[0].ticket;const hora=new Date();h
   <h1>${esc(t0.titulo)}</h1><p>${esc(t0.desc)}</p>
   <div class="meta"><div><b>Solicitante</b>${esc(t0.solicitante)}</div><div><b>Equipamento citado</b>${esc(t0.equip)}</div><div><b>Aberto às</b>${hora.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</div></div>`;
   ch.defeitos.slice(1).forEach(x=>{h+=`<div class="vinc"><b>Chamado vinculado (${x.ticket.pri}):</b> ${esc(x.ticket.titulo)}. ${esc(x.ticket.desc)}</div>`});
-  h+=`<details class="doc"><summary>Documentação da rede</summary>
-  <table><tr><th>VLAN</th><th>Nome</th><th>Rede</th><th>Gateway</th><th>Onde</th></tr>
-  <tr><td>10</td><td>ADMINISTRATIVO</td><td>10.10.10.0/24</td><td>10.10.10.1</td><td>PC-FAT02 (SW-1A Gi1/0/6)</td></tr>
-  <tr><td>20</td><td>RECEPCAO</td><td>10.10.20.0/24</td><td>10.10.20.1</td><td>PC-RECEP01 (SW-1A Gi1/0/5)</td></tr>
-  <tr><td>30</td><td>IMAGEM</td><td>10.10.30.0/24</td><td>10.10.30.1</td><td>TOMO-01 fixo .50 (SW-3A Gi1/0/5), PC-LAUDO03 (Gi1/0/6)</td></tr>
-  <tr><td>99</td><td>QUARENTENA</td><td>sem rede</td><td>–</td><td>pontos sem uso</td></tr>
-  <tr><td>100</td><td>SERVIDORES</td><td>10.10.1.0/24</td><td>10.10.1.1</td><td>SRV-DNS .10, SRV-PACS .20 (CORE-01 Gi1/0/10-11)</td></tr></table>
-  <ul><li><b>CORE-01</b> (camada 3): gateway das VLANs, servidor DHCP, rota padrão para o FortiGate 10.10.0.1 pela Gi1/0/1. Raiz do STP.</li>
-  <li><b>SW-1A</b> (1º andar): Po1 com LACP (Gi1/0/49-50 ↔ CORE-01 Gi1/0/2-3). <b>SW-3A</b> (3º andar): Gi1/0/49 ↔ CORE-01 Gi1/0/4. Link de backup SW-1A Gi1/0/48 ↔ SW-3A Gi1/0/50 (bloqueado pelo STP em operação normal).</li>
-  <li><b>FGT-HVC</b>: port2 10.10.0.1/30 (LAN), port1 200.160.2.2/30 (WAN, operadora 200.160.2.1). Política 1 LAN→Internet com NAT. Rota 10.10.0.0/16 via core.</li>
-  <li>DNS interno 10.10.1.10 (zona hvc.local, ex.: pacs.hvc.local). PACS: DICOM TCP 104 e web HTTPS 443.</li>
-  <li>Padrões: portas de usuário em access + portfast + bpduguard; trunks com VLANs 10,20,30; tudo em speed/duplex auto; LACP active.</li></ul></details>`;
-  $('ticket').innerHTML=h}
+  const fx=G.mod!=null&&MODS[G.mod]?MODS[G.mod].faixa:(G.ch.nivel>=3?2:1);
+  if(fx<=1)h+=`<div class="roteiro"><b class="rot">POR ONDE COMEÇAR</b><ol>
+   <li>Abra o equipamento citado no chamado (aba ou clique no mapa) e veja a configuração: <code>ipconfig /all</code> no PC, <code>rede mostrar</code> no tomógrafo.</li>
+   <li>Compare o IP, o gateway e o DNS com a tabela de setores abaixo. Algo diferente?</li>
+   <li>Teste do mais perto para o mais longe: <code>ping</code> no gateway do setor → <code>ping 10.10.1.20</code> (PACS) → <code>ping 8.8.8.8</code> (internet) → <code>ping pacs.hvc.local</code> (nome).</li>
+   <li>Onde parou? Se o PC está certo mas não fala nem com o gateway, suba para o switch do andar: <code>enable</code> e <code>show interfaces status</code>.</li></ol>
+   <p class="mute pequeno">Travou? Peça dica. Errar e tentar de novo faz parte.</p></div>`;
+  h+=`<details class="doc" ${fx<=1?'open':''}><summary>Documentação: setores e endereços</summary>
+  <table><tr><th>Setor</th><th>Equipamentos</th><th>IPs começam com</th><th>Gateway (saída)</th></tr>
+  <tr><td>Faturamento</td><td>PC-FAT02</td><td>10.10.10.x</td><td>10.10.10.1</td></tr>
+  <tr><td>Recepção do PS</td><td>PC-RECEP01</td><td>10.10.20.x</td><td>10.10.20.1</td></tr>
+  <tr><td>Imagem (3º andar)</td><td>TOMO-01 (.50, fixo) e PC-LAUDO03</td><td>10.10.30.x</td><td>10.10.30.1</td></tr>
+  <tr><td>Servidores</td><td>SRV-DNS (.10) e SRV-PACS (.20)</td><td>10.10.1.x</td><td>10.10.1.1</td></tr></table>
+  <ul><li>Máscara de todos: <b>255.255.255.0</b>. DNS de todos: <b>10.10.1.10</b>. Os PCs pegam tudo isso automático (DHCP); só o tomógrafo e os servidores têm IP fixo.</li>
+  <li>Caminho: PC → switch do andar (<b>SW-1A</b> no 1º, <b>SW-3A</b> no 3º) → <b>CORE-01</b> (onde ficam os gateways) → <b>FGT-HVC</b> (firewall) → internet.</li>
+  <li>Portas: PC-RECEP01 na Gi1/0/5 e PC-FAT02 na Gi1/0/6 do SW-1A · TOMO-01 na Gi1/0/5 e PC-LAUDO03 na Gi1/0/6 do SW-3A.</li></ul>
+  <details><summary>Detalhes técnicos (Pleno)</summary><ul>
+  <li>VLANs: 10 ADMINISTRATIVO, 20 RECEPCAO, 30 IMAGEM, 99 QUARENTENA (sem rede), 100 SERVIDORES. Portas de usuário: access + portfast + bpduguard.</li>
+  <li>SW-1A ↔ CORE-01: Po1 com LACP active (Gi1/0/49-50 ↔ Gi1/0/2-3). SW-3A Gi1/0/49 ↔ CORE-01 Gi1/0/4. Backup SW-1A Gi1/0/48 ↔ SW-3A Gi1/0/50, bloqueado pelo STP (raiz: CORE-01). Trunks com VLANs 10,20,30; tudo em speed/duplex auto.</li>
+  <li>CORE-01 Gi1/0/1 10.10.0.2/30 → FGT-HVC port2 10.10.0.1; rota padrão do core via 10.10.0.1. FGT: port1 200.160.2.2/30 (operadora .1), política 1 LAN→Internet com NAT, rota 10.10.0.0/16 via core.</li>
+  <li>PACS: DICOM TCP 104 e web HTTPS 443.</li></ul></details></details>`;
+  $('ticket').innerHTML=h;$('ticket').querySelectorAll('.roteiro code').forEach(c=>{c.style.cursor='pointer';c.title='Clique para copiar para o console';c.onclick=()=>{$('cmd').value=c.textContent;$('cmd').focus()}})}
 
 /* ---------- console ---------- */
 function abas(){$('abas').innerHTML=ABAS.map(id=>{const d=G.st.devs[id];return`<button type="button" role="tab" data-d="${id}" aria-pressed="${id===G.dev}">${d.nome}<small>${TAG[d.tipo]}${d.naoSalvo?' · não salvo':''}</small></button>`}).join('');
