@@ -144,6 +144,28 @@ details.doc summary{cursor:pointer;font-weight:600;font-size:.9rem;color:var(--a
 .modos small{color:var(--mute)}
 .rodape{font-size:.82rem;color:var(--mute)}
 .rodape a{color:var(--accent)}
+.menu .mcard{max-width:780px}
+.mute{color:var(--mute)}
+.barra{display:grid;gap:5px}.barra-t{display:flex;justify-content:space-between;font:600 .8rem var(--mono);color:var(--mute)}
+.barra i{display:block;height:8px;border-radius:9px;background:var(--line);overflow:hidden}.barra em{display:block;height:100%;width:0;background:var(--accent);transition:width .4s}
+.opcoes{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.op{display:grid;gap:3px;text-align:left;border:1.5px solid var(--line);background:var(--panel);border-radius:12px;padding:12px 14px;cursor:pointer}
+.op:hover{border-color:var(--accent)}.op b{font:800 1.12rem/1.1 var(--display);font-stretch:85%}.op small{color:var(--mute);font-size:.82rem}
+.op.prim{grid-column:1/-1;background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}.op.prim small{color:var(--accent-ink);opacity:.85}
+.op[disabled]{opacity:.5;cursor:not-allowed}
+.vtop{display:flex;gap:12px;align-items:center;margin-bottom:6px}.vtop h2{font-size:1.6rem}
+.nivel{margin:10px 0 6px;font:600 .74rem var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--mute);display:flex;justify-content:space-between}
+.mods{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px}
+.mod{display:grid;gap:2px;text-align:left;border:1.5px solid var(--line);background:var(--panel);border-radius:11px;padding:10px 12px;cursor:pointer}
+.mod:hover:not([disabled]){border-color:var(--accent)}.mod[disabled]{opacity:.45;cursor:not-allowed}
+.mod .n{font:600 .7rem var(--mono);color:var(--mute);display:flex;justify-content:space-between}.mod b{font-size:.95rem;line-height:1.25}
+.mod .e{color:var(--p2);letter-spacing:2px}.mod.prox{border-color:var(--accent);background:var(--accent-soft)}
+.intro h3{margin:4px 0 0;font:600 .72rem var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--mute)}
+.intro .teoria{background:var(--accent-soft);border-radius:10px;padding:10px 13px}
+.cmds{display:flex;flex-wrap:wrap;gap:6px}
+.como{display:grid;gap:6px;padding-left:20px;margin:0}
+.lnk{background:none;border:0;padding:0;color:var(--accent);text-decoration:underline;cursor:pointer;font-size:inherit}
+@media (max-width:560px){.opcoes{grid-template-columns:1fr}}
 .grande{font:800 2.6rem/1 var(--display);font-stretch:80%;color:var(--accent)}
 @media (max-width:1000px){.mesa{grid-template-columns:1fr}.tela{height:320px}.sla{width:120px}}
 @media (max-width:560px){.topo{position:static}.hud .chip.opc{display:none}.modos{grid-template-columns:1fr}.card{padding:14px}}
@@ -161,6 +183,7 @@ details.doc summary{cursor:pointer;font-weight:600;font-size:.9rem;color:var(--a
     <div class="sla" id="sla"><i id="slaBar" style="width:100%"></i><span id="slaTxt">SLA –</span></div>
   </div>
   <div class="ctl">
+    <button class="ib" id="bMenu" type="button">Menu</button>
     <button class="ib" id="bPausa" type="button" aria-label="Pausar (P)">Pausar</button>
     <button class="ib" id="bSom" type="button" aria-label="Som">Som: on</button>
   </div>
@@ -193,26 +216,52 @@ details.doc summary{cursor:pointer;font-weight:600;font-size:.9rem;color:var(--a
   </div>
 </main>
 
-<div class="ov" id="ovInicio">
-  <div class="card">
-    <h2>Plantão de Redes</h2>
-    <p>Você está de plantão na rede do hospital. Cada chamado é um defeito <b>de verdade</b> numa rede que funciona: o ping é calculado salto a salto, o STP escolhe as portas, o LACP negocia, o FortiGate aplica rota, política e NAT.</p>
-    <ol>
-      <li>Leia o chamado e a documentação.</li>
-      <li>Investigue nos consoles (troque de equipamento nas abas ou clicando no mapa). Digite <code>ajuda</code> em qualquer um.</li>
-      <li>Corrija, prove que voltou e clique em <b>Encerrar chamado</b>. Se algo continuar quebrado na rede, o usuário reabre.</li>
-    </ol>
-    <div class="modos">
-      <label><input type="radio" name="modo" value="plantao" checked> <b>Plantão</b><small>Defeitos aleatórios, SLA correndo, 3 vidas. Fica mais difícil a cada 3 chamados.</small></label>
-      <label><input type="radio" name="modo" value="treino"> <b>Treino</b><small>Escolha o tipo de defeito. Sem SLA, sem perder vida.</small></label>
-    </div>
-    <select id="selDef" hidden></select>
-    <div class="acoes"><button class="btn" id="bJogar" type="button">Começar plantão</button><span class="rodape">Recorde: <b id="iRec">0</b> pts</span></div>
-    <p class="rodape">Atalhos: <b>P</b> ou <b>Esc</b> pausa · <b>↑ ↓</b> histórico de comandos · versão anterior com 9 chamados roteirizados: <a href="v1/">Plantão v1</a></p>
+<div class="ov menu" id="ovMenu">
+  <div class="card mcard">
+    <section id="vHome">
+      <h2>Plantão de Redes</h2>
+      <p class="mute">Simulador de chamados de rede de hospital. Cada defeito acontece numa rede que funciona de verdade: você investiga nos consoles, corrige e prova que voltou.</p>
+      <div class="barra"><div class="barra-t"><span id="pTxt"></span><span id="pNiv"></span></div><i><em id="pBar"></em></i></div>
+      <div class="opcoes">
+        <button class="op prim" id="mVoltar" type="button" hidden><b>Voltar ao chamado</b><small id="mVoltarTxt"></small></button>
+        <button class="op prim" id="mCont" type="button"><b id="mContT">Começar a trilha</b><small id="mContS"></small></button>
+        <button class="op" id="mTrilha" type="button"><b>Trilha de módulos</b><small>16 módulos em 3 níveis. Cada um libera o próximo. Repita os concluídos para tirar 3 estrelas.</small></button>
+        <button class="op" id="mPlantao" type="button"><b>Plantão</b><small id="mPlantaoS"></small></button>
+        <button class="op" id="mTreino" type="button"><b>Treino livre</b><small>Repita qualquer módulo já concluído, sem tempo.</small></button>
+        <button class="op" id="mComo" type="button"><b>Como jogar</b><small>Consoles, mapa, dicas, pontos e atalhos.</small></button>
+      </div>
+      <p class="rodape">Recorde do plantão: <b id="iRec">0</b> pts · <a href="v1/">Versão 1 (9 chamados roteirizados)</a> · <button class="lnk" id="mZerar" type="button">zerar progresso</button></p>
+    </section>
+    <section id="vTrilha" hidden>
+      <div class="vtop"><button class="ib" data-volta type="button">← Menu</button><h2>Trilha de módulos</h2></div>
+      <div id="trilha"></div>
+    </section>
+    <section id="vTreino" hidden>
+      <div class="vtop"><button class="ib" data-volta type="button">← Menu</button><h2>Treino livre</h2></div>
+      <p class="mute">Só aparecem os módulos que você já concluiu. Sem SLA e sem perder vida.</p>
+      <div id="treinoLista" class="mods"></div>
+    </section>
+    <section id="vComo" hidden>
+      <div class="vtop"><button class="ib" data-volta type="button">← Menu</button><h2>Como jogar</h2></div>
+      <ol class="como">
+        <li><b>Leia o chamado</b> e abra a <b>Documentação da rede</b> (VLANs, IPs, quem liga em quem).</li>
+        <li><b>Investigue</b> nos consoles: troque de equipamento pelas abas ou clicando no mapa. Digite <code>ajuda</code> em qualquer um. Os botões "atalhos" preenchem comandos comuns.</li>
+        <li><b>Comece pelo usuário</b> (ipconfig, ping) e vá subindo: switch do andar → core → firewall.</li>
+        <li><b>Corrija</b> e salve a configuração dos switches com <code>write memory</code>.</li>
+        <li>Clique em <b>Encerrar chamado</b>. O sistema testa a rede inteira; se algo ainda falhar, o usuário reabre.</li>
+      </ol>
+      <ul class="como">
+        <li><b>Mapa ao vivo:</b> verde = ok · tracejado vermelho = sem link · pontilhado amarelo = bloqueado pelo STP · grosso amarelo = com perda · vermelho pulsando = tempestade (loop). A bolinha mostra o caminho do seu último ping.</li>
+        <li><b>Módulos:</b> sem tempo. Dica tira estrela, não ponto. Concluir libera o próximo.</li>
+        <li><b>Plantão:</b> chamados aleatórios só dos níveis que você já liberou, com SLA e 3 vidas.</li>
+        <li><b>Atalhos:</b> ↑ ↓ histórico de comandos · P ou Esc pausa · comandos Cisco aceitam abreviação (<code>sh int st</code>, <code>conf t</code>).</li>
+      </ul>
+    </section>
   </div>
 </div>
-<div class="ov" id="ovPausa" hidden><div class="card"><h2>Pausado</h2><p>O SLA está parado. Respire, releia o chamado e volte.</p><div class="acoes"><button class="btn" id="bVoltar" type="button">Continuar</button><button class="btn sec" id="bSair" type="button">Encerrar plantão</button></div></div></div>
-<div class="ov" id="ovFim" hidden><div class="card"><h2>Fim do plantão</h2><div class="grande" id="fPts">0</div><p id="fTxt"></p><div class="acoes"><button class="btn" id="bDeNovo" type="button">Jogar de novo</button></div></div></div>
+<div class="ov" id="ovIntro" hidden><div class="card mcard" id="introCard"></div></div>
+<div class="ov" id="ovPausa" hidden><div class="card"><h2>Pausado</h2><p>O SLA está parado. Respire, releia o chamado e volte.</p><div class="acoes"><button class="btn" id="bVoltar" type="button">Continuar</button><button class="btn sec" id="bSair" type="button">Voltar ao menu</button></div></div></div>
+<div class="ov" id="ovFim" hidden><div class="card"><h2>Fim do plantão</h2><div class="grande" id="fPts">0</div><p id="fTxt"></p><div class="acoes"><button class="btn" id="bDeNovo" type="button">Voltar ao menu</button></div></div></div>
 <div class="toast" id="toast" hidden></div>
 
 <script src="motor.js"></script>
@@ -235,21 +284,64 @@ let AC=null;
 function bip(tipo){if(!G.som)return;try{AC=AC||new (window.AudioContext||window.webkitAudioContext)();const seq={novo:[[660,.09],[880,.12]],ok:[[523,.1],[659,.1],[784,.18]],erro:[[220,.22]],alerta:[[880,.08],[0,.06],[880,.08]],cmd:[[1200,.015]]}[tipo];let t=AC.currentTime;
   for(const[f,d]of seq){if(f){const o=AC.createOscillator(),g=AC.createGain();o.type=tipo==='erro'?'sawtooth':'sine';o.frequency.value=f;g.gain.setValueAtTime(tipo==='cmd'?.02:.08,t);g.gain.exponentialRampToValueAtTime(.0001,t+d);o.connect(g).connect(AC.destination);o.start(t);o.stop(t+d)}t+=d}}catch(e){}}
 
-/* ---------- início ---------- */
-function montarInicio(){$('iRec').textContent=G.rec;const sel=$('selDef');const niv={1:'Nível 1',2:'Nível 2',3:'Nível 3'};
-  sel.innerHTML=[1,2,3].map(n=>`<optgroup label="${niv[n]}">${Motor.DEFEITOS.filter(f=>f.nivel===n).map(f=>`<option value="${f.id}">${f.area}</option>`).join('')}</optgroup>`).join('');
-  document.querySelectorAll('input[name=modo]').forEach(r=>r.onchange=()=>{const t=r.value==='treino'&&r.checked;sel.hidden=!t;$('bJogar').textContent=t?'Começar treino':'Começar plantão'})}
-function comecar(){const m=document.querySelector('input[name=modo]:checked').value;Object.assign(G,{modo:m,forcar:m==='treino'?$('selDef').value:null,n:0,pts:0,vidas:3,resolvidos:0,recentes:[],ativo:true,pausado:false});
-  $('ovInicio').hidden=true;$('ovFim').hidden=true;proximo()}
+/* ---------- trilha de módulos ---------- */
+const NIVEL_NOME={1:'Básico',2:'Intermediário',3:'Avançado'};
+const MODS=[
+ {id:'gw',t:'O PC e o endereço IP',obj:'Descobrir por que um equipamento fala com a própria sala, mas não sai dela.',teo:'Todo equipamento precisa de 4 coisas: IP, máscara, gateway e DNS. A máscara diz quem está "na mesma rede". Para falar com qualquer outra rede, o pacote vai para o gateway, a porta de saída. Gateway errado = funciona dentro da sala e falha fora dela.',cmd:['ipconfig /all','ping 10.10.10.1','ping 8.8.8.8','tracert 8.8.8.8','rede mostrar (tomógrafo)']},
+ {id:'dns',t:'Nome × endereço (DNS)',obj:'Separar "a rede caiu" de "o nome não resolve".',teo:'Pessoas usam nomes (pacs.hvc.local); a rede usa IPs. O DNS traduz um no outro. Se o ping por IP funciona e por nome não, o problema é DNS, não cabo nem switch.',cmd:['ping 8.8.8.8','ping google.com','nslookup pacs.hvc.local','ipconfig /all']},
+ {id:'shut',t:'A porta do switch',obj:'Ler o status da porta e religar uma porta desligada.',teo:'Cada tomada termina numa porta do switch do andar. Status: connected (ok), notconnect (sem link), disabled (desligada por comando), err-disabled (desligada por proteção). No switch, enable entra como administrador e configure terminal entra no modo de configuração.',cmd:['enable','show interfaces status','configure terminal','interface gi1/0/5','no shutdown','write memory']},
+ {id:'vlan',t:'VLAN de acesso',obj:'Achar uma porta na VLAN errada.',teo:'VLAN divide um switch físico em várias redes separadas. Cada porta de usuário pertence a uma VLAN. Porta na VLAN errada = o PC cai numa rede sem DHCP e se dá um IP 169.254 (APIPA).',cmd:['ipconfig','show vlan brief','show interfaces status','switchport access vlan 20']},
+ {id:'bpdu',t:'Proteção da porta (BPDU Guard)',obj:'Reativar uma porta que o switch derrubou por proteção.',teo:'BPDU é a mensagem que switches trocam para evitar loop. Porta de usuário não deveria receber BPDU. Com BPDU Guard, se alguém pluga um switch ali, a porta cai na hora (err-disabled) e só volta com shutdown + no shutdown.',cmd:['show logging','show interfaces status','shutdown','no shutdown']},
+ {id:'trunk',t:'Trunk 802.1Q',obj:'Descobrir qual VLAN não está passando entre switches.',teo:'Entre switches, um cabo carrega várias VLANs: é o trunk. Cada quadro leva uma etiqueta com o número da VLAN. A lista "allowed vlan" diz quais passam. Use "add" para incluir; sem "add", a lista é substituída.',cmd:['show interfaces trunk','interface port-channel 1','switchport trunk allowed vlan add 20']},
+ {id:'vlandb',t:'Banco de VLANs',obj:'Entender o status "inactive".',teo:'A VLAN precisa existir no switch (comando vlan N). Porta apontando para uma VLAN que não existe fica "inactive", e o trunk também deixa de transportá-la.',cmd:['show interfaces status','show vlan brief','vlan 30','name IMAGEM']},
+ {id:'svi',t:'Gateway no core (SVI)',obj:'Achar o ponto comum quando um setor inteiro cai.',teo:'O gateway de cada VLAN é uma interface virtual no core (interface vlan 10, IP .1). Aqui ela também entrega o DHCP. Se a SVI cai, a VLAN inteira fica sem saída e sem IP.',cmd:['show ip interface brief','interface vlan 10','no shutdown']},
+ {id:'rota',t:'Rota padrão',obj:'Usar o tracert para achar onde o caminho acaba.',teo:'Roteador só encaminha para redes que conhece. Para "todo o resto" existe a rota padrão 0.0.0.0/0. Sem ela, o tracert para no core com "Rede de destino inacessível".',cmd:['tracert 8.8.8.8','show ip route','ip route 0.0.0.0 0.0.0.0 10.10.0.1']},
+ {id:'duplex',t:'Camada 1: velocidade e duplex',obj:'Diagnosticar lentidão com perda de pacotes.',teo:'Full duplex fala e escuta ao mesmo tempo; half, um de cada vez. Se um lado é fixo e o outro automático, o automático cai para half: perda, CRC e colisões. Regra: auto dos dois lados ou fixo dos dois.',cmd:['ping 10.10.1.20','show interfaces gi1/0/4','show interfaces status','speed auto','duplex auto']},
+ {id:'lacp',t:'EtherChannel e LACP',obj:'Fazer dois cabos voltarem a trabalhar como um só.',teo:'EtherChannel junta 2 ou mais cabos num link lógico (Port-channel): mais banda e redundância. LACP negocia isso: active/active ou active/passive. "on" não negocia e só funciona com "on" do outro lado.',cmd:['show etherchannel summary','interface range gi1/0/49 - 50','channel-group 1 mode active']},
+ {id:'loop',t:'STP e loops',obj:'Reconhecer e quebrar uma tempestade de broadcast.',teo:'Dois caminhos entre switches formam um loop: o broadcast gira sem parar e derruba a VLAN. O STP evita isso bloqueando uma porta (BLK). BPDU filter faz a porta ignorar o STP, e aí o loop acontece.',cmd:['show logging','show spanning-tree vlan 30','show running-config interface gi1/0/7','shutdown']},
+ {id:'acl',t:'ACL e curinga',obj:'Ler uma ACL linha a linha.',teo:'ACL é uma lista de permit/deny lida de cima para baixo: a primeira que casa decide. A curinga é o inverso da máscara: /24 vira 0.0.0.255. Ping passar não prova que o serviço passa: cada serviço usa uma porta TCP.',cmd:['dicom eco (tomógrafo)','show access-lists','ip access-list extended NOME','no 20']},
+ {id:'fwpol',t:'FortiGate: política',obj:'Ver por que o firewall barrou o tráfego.',teo:'O firewall só deixa passar o que uma política permite (origem, destino, serviço). Nenhuma política casou = negação implícita (policy 0). O debug flow mostra a decisão pacote a pacote.',cmd:['tracert 8.8.8.8','diagnose debug flow trace start 10','show firewall policy','config firewall policy']},
+ {id:'fwnat',t:'FortiGate: NAT',obj:'Ler uma captura e perceber o NAT faltando.',teo:'IP privado (10.x) não anda na internet. O NAT troca a origem pelo IP público do firewall na saída e desfaz na volta. Sem NAT o pacote sai, mas a resposta nunca volta.',cmd:["diagnose sniffer packet any 'icmp' 4",'show firewall policy','set nat enable']},
+ {id:'fwrota',t:'FortiGate: rota de retorno',obj:'Pensar em ida E volta.',teo:'O firewall precisa de rota para as redes internas. Sem ela, descarta o pacote na checagem de caminho reverso (RPF). Pista clássica: o core navega e os PCs não.',cmd:['get router info routing-table all','diagnose debug flow trace start 10','config router static']}];
+MODS.forEach((m,i)=>{m.i=i;m.nivel=Motor.DEFEITOS.find(f=>f.id===m.id).nivel;m.area=Motor.DEFEITOS.find(f=>f.id===m.id).area});
+let PROG=ls.get('progresso',{});
+const feito=m=>!!PROG[m.id];
+const liberado=m=>m.i===0||feito(MODS[m.i-1]);
+const proxMod=()=>MODS.find(m=>!feito(m))||null;
+const nivelLib=()=>Math.max(...MODS.filter(liberado).map(m=>m.nivel));
+function mostrarView(v){['vHome','vTrilha','vTreino','vComo'].forEach(x=>$(x).hidden=x!==v);$('ovMenu').scrollTop=0}
+function abrirMenu(){if(G.ativo&&!G.resolvido&&G.modo==='plantao'&&!G.pausado)G.pausado=true;G.noMenu=true;montarMenu();mostrarView('vHome');$('ovMenu').hidden=false;$('ovPausa').hidden=true;$('ovFim').hidden=true;$('ovIntro').hidden=true}
+function fecharMenu(){$('ovMenu').hidden=true;G.noMenu=false}
+function montarMenu(){$('iRec').textContent=G.rec;const n=MODS.filter(feito).length;$('pTxt').textContent=`Trilha: ${n} de ${MODS.length} módulos`;$('pNiv').textContent='Nível liberado: '+NIVEL_NOME[nivelLib()];$('pBar').style.width=(n/MODS.length*100)+'%';
+  const pm=proxMod();if(pm){$('mContT').textContent=n?'Continuar a trilha':'Começar a trilha';$('mContS').textContent=`Módulo ${pm.i+1} · ${pm.t} (${NIVEL_NOME[pm.nivel]})`}else{$('mContT').textContent='Trilha concluída!';$('mContS').textContent='Agora é Plantão: tente bater seu recorde.'}
+  $('mPlantaoS').textContent=`Chamados aleatórios com SLA e 3 vidas. Usa só o que você já liberou: nível ${NIVEL_NOME[nivelLib()]}.`;
+  const em=G.ativo&&!G.resolvido&&G.ch;$('mVoltar').hidden=!em;if(em)$('mVoltarTxt').textContent=`${G.ch.num} · ${G.ch.defeitos[0].ticket.titulo}`;
+  $('mTreino').disabled=!n;
+  let h='';for(const nv of[1,2,3]){const ms=MODS.filter(m=>m.nivel===nv);h+=`<div class="nivel"><span>Nível ${nv} · ${NIVEL_NOME[nv]}</span><span>${ms.filter(feito).length}/${ms.length}</span></div><div class="mods">`;
+    ms.forEach(m=>{const l=liberado(m),f=feito(m),p=pm&&pm.id===m.id;h+=`<button class="mod ${p?'prox':''}" type="button" data-m="${m.i}" ${l?'':'disabled'}><span class="n"><span>Módulo ${m.i+1}</span><span class="e">${f?'★'.repeat(PROG[m.id].est)+'☆'.repeat(3-PROG[m.id].est):l?'novo':'🔒'}</span></span><b>${esc(m.t)}</b></button>`});h+='</div>'}
+  $('trilha').innerHTML=h;$('trilha').querySelectorAll('.mod').forEach(b=>b.onclick=()=>intro(+b.dataset.m));
+  $('treinoLista').innerHTML=MODS.filter(feito).map(m=>`<button class="mod" type="button" data-m="${m.i}"><span class="n"><span>Módulo ${m.i+1}</span><span class="e">${'★'.repeat(PROG[m.id].est)}</span></span><b>${esc(m.t)}</b></button>`).join('')||'<p class="mute">Conclua o primeiro módulo da trilha.</p>';
+  $('treinoLista').querySelectorAll('.mod').forEach(b=>b.onclick=()=>iniciar('treino',+b.dataset.m))}
+function intro(i){const m=MODS[i];$('introCard').innerHTML=`<div class="intro" style="display:grid;gap:10px">
+  <div class="cab" style="font:600 .76rem var(--mono);color:var(--mute)">Módulo ${i+1} de ${MODS.length} · Nível ${m.nivel} · ${NIVEL_NOME[m.nivel]}</div>
+  <h2>${esc(m.t)}</h2><h3>Objetivo</h3><p>${esc(m.obj)}</p><h3>O mínimo de teoria</h3><p class="teoria">${esc(m.teo)}</p>
+  <h3>Comandos que você vai usar</h3><div class="cmds">${m.cmd.map(c=>`<code>${esc(c)}</code>`).join('')}</div>
+  ${i===0?'<p class="mute">Primeira vez? Os consoles ficam à direita: troque de equipamento pelas abas ou clicando no mapa, e use os botões "atalhos" para preencher comandos.</p>':''}
+  <p class="mute">Sem tempo. Tente sozinho primeiro; cada dica tira uma estrela, não pontos.</p>
+  <div class="acoes"><button class="btn" id="iGo" type="button">Abrir o chamado</button><button class="btn sec" id="iBack" type="button">Voltar</button></div></div>`;
+  $('ovIntro').hidden=false;$('iGo').onclick=()=>iniciar('modulo',i);$('iBack').onclick=()=>{$('ovIntro').hidden=true}}
+function iniciar(modo,i){const m=i!=null?MODS[i]:null;Object.assign(G,{modo,mod:i,forcar:m?m.id:null,nivelMax:modo==='plantao'?nivelLib():3,n:0,pts:0,vidas:3,resolvidos:0,recentes:[],ativo:true,pausado:false});
+  $('ovIntro').hidden=true;fecharMenu();proximo()}
+function salvarModulo(est){const m=MODS[G.mod];const antes=PROG[m.id]?PROG[m.id].est:0;PROG[m.id]={est:Math.max(antes,est)};ls.set('progresso',PROG);return!antes}
 
 /* ---------- chamado ---------- */
 function proximo(){G.n++;const seed=((Date.now()>>>0)^Math.imul(G.n,2654435761))>>>0;
-  const r=Motor.novoChamado(G.n,seed,{forcar:G.forcar,evitar:G.recentes.slice(-4)});G.st=r.st;G.ch=r.ch;r.ch.defeitos.forEach(x=>G.recentes.push(x.f.id));
+  const r=Motor.novoChamado(G.n,seed,{forcar:G.forcar,evitar:G.recentes.slice(-4),nivelMax:G.nivelMax||3});G.st=r.st;G.ch=r.ch;r.ch.defeitos.forEach(x=>G.recentes.push(x.f.id));
   Object.assign(G,{slaMax:SLA[G.ch.pri],sla:SLA[G.ch.pri],estourou:false,dicas:0,reab:0,resolvido:false,log:{},hist:{},hp:{},anim:null,fx:[],aberto:performance.now()});
   const eq=G.ch.defeitos[0].ticket.equip;G.dev=ABAS.find(id=>eq.includes(G.st.devs[id].nome))||'RECEP';
   for(const id of ABAS)G.log[id]=[['sys',boasVindas(id)]];
   $('dicas').innerHTML='';$('deb').hidden=true;$('bFechar').disabled=false;$('bDica').disabled=false;$('bDesistir').disabled=false;
-  $('bDesistir').textContent=G.modo==='plantao'?'Ver solução (perde 1 vida)':'Ver solução';
+  $('bDesistir').textContent=G.modo==='plantao'?'Ver solução (perde 1 vida)':'Ver solução';$('bDica').dataset.custo=G.modo==='plantao'?' · −40':' · −1 ★';
   ticket();abas();tela();mapa();hud();atualizaDica();bip('novo');window.scrollTo({top:0,behavior:'smooth'})}
 function boasVindas(id){const d=G.st.devs[id];
   if(d.tipo==='pc')return'Microsoft Windows [versão 10.0.22631.4317]\n(c) Microsoft Corporation. Todos os direitos reservados.\n(acesso remoto pelo suporte)';
@@ -259,7 +351,7 @@ function boasVindas(id){const d=G.st.devs[id];
   if(d.tipo==='sw')return`Conectado pelo cabo de console (azul) ao ${d.nome} no rack do andar.`;
   return'Conectado via SSH a FGT-HVC (10.10.0.1).'}
 function ticket(){const ch=G.ch,t0=ch.defeitos[0].ticket;const hora=new Date();hora.setMinutes(hora.getMinutes()-3);
-  let h=`<div class="cab"><span>${esc(ch.num)}</span><span class="pri ${ch.pri}">${PRI_TXT[ch.pri]}</span><span>${G.modo==='treino'?'treino · '+esc(ch.defeitos[0].f.area):'nível '+ch.nivel}</span></div>
+  let h=`<div class="cab"><span>${esc(ch.num)}</span><span class="pri ${ch.pri}">${PRI_TXT[ch.pri]}</span><span>${G.modo==='modulo'?'módulo '+(G.mod+1)+' · '+esc(MODS[G.mod].t):G.modo==='treino'?'treino · '+esc(MODS[G.mod].t):'plantão · nível '+ch.nivel}</span></div>
   <h1>${esc(t0.titulo)}</h1><p>${esc(t0.desc)}</p>
   <div class="meta"><div><b>Solicitante</b>${esc(t0.solicitante)}</div><div><b>Equipamento citado</b>${esc(t0.equip)}</div><div><b>Aberto às</b>${hora.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</div></div>`;
   ch.defeitos.slice(1).forEach(x=>{h+=`<div class="vinc"><b>Chamado vinculado (${x.ticket.pri}):</b> ${esc(x.ticket.titulo)}. ${esc(x.ticket.desc)}</div>`});
@@ -328,25 +420,26 @@ function passoFx(dt){const g=$('fx');if(!g)return;if(!G.fx.length){if(g.childEle
 
 /* ---------- HUD, SLA, dicas ---------- */
 const mmss=s=>{s=Math.max(0,Math.ceil(s));return String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0')};
-function hud(){$('hN').textContent=G.n||'–';$('hNiv').textContent=G.ch?G.ch.nivel:'–';$('hPts').textContent=G.pts;$('hRec').textContent=G.rec;
-  $('hVidas').style.color=G.modo==='treino'?'var(--mute)':'';$('hVidas').textContent=G.modo==='treino'?'treino':'♥'.repeat(G.vidas)+'♡'.repeat(3-G.vidas);
-  if(G.modo==='treino'||!G.ch){$('slaTxt').textContent='sem SLA';$('slaBar').style.width='0%';return}
+function hud(){$('bPausa').hidden=G.modo!=='plantao'||!G.ativo;$('hPts').parentNode.hidden=G.modo!=='plantao';$('hN').textContent=G.n||'–';$('hNiv').textContent=G.ch?G.ch.nivel:'–';$('hPts').textContent=G.pts;$('hRec').textContent=G.rec;
+  $('hVidas').style.color=G.modo!=='plantao'?'var(--mute)':'';$('hVidas').textContent=G.modo==='modulo'?'módulo '+(G.mod+1):G.modo==='treino'?'treino':'♥'.repeat(G.vidas)+'♡'.repeat(3-G.vidas);
+  if(G.modo!=='plantao'||!G.ch){$('slaTxt').textContent='sem SLA';$('slaBar').style.width='0%';return}
   $('slaBar').style.width=(G.sla/G.slaMax*100)+'%';$('slaTxt').textContent=G.estourou?'SLA estourado':'SLA '+mmss(G.sla);$('sla').classList.toggle('alerta',G.sla<60||G.estourou)}
 function todasDicas(){return G.ch.defeitos.flatMap(x=>x.f.dicas(x.ctx))}
-function atualizaDica(){const n=todasDicas().length,r=n-G.dicas;$('bDica').textContent=r>0?`Pedir dica (${r}) · −40`:'Sem mais dicas';$('bDica').disabled=r<=0||G.resolvido}
+function atualizaDica(){const n=todasDicas().length,r=n-G.dicas;$('bDica').textContent=r>0?`Pedir dica (${r})${$('bDica').dataset.custo||''}`:'Sem mais dicas';$('bDica').disabled=r<=0||G.resolvido}
 function dica(){const ds=todasDicas();if(G.dicas>=ds.length||G.resolvido)return;const t=ds[G.dicas];G.dicas++;$('dicas').insertAdjacentHTML('beforeend',`<div class="dica"><b>DICA ${G.dicas}</b>${t}</div>`);atualizaDica()}
 function toast(titulo,itens,ok){const t=$('toast');t.className='toast'+(ok?' ok':'');t.innerHTML=`<b>${esc(titulo)}</b>${itens&&itens.length?'<ul>'+itens.map(i=>`<li>${esc(i)}</li>`).join('')+'</ul>':''}`;t.hidden=false;clearTimeout(toast.t);toast.t=setTimeout(()=>t.hidden=true,ok?2500:6000)}
 function tremer(){const e=$('ticket');e.classList.remove('treme');void e.offsetWidth;e.classList.add('treme')}
 
 /* ---------- encerrar / solução ---------- */
+let p_novo=false;
 function encerrar(){if(!G.ativo||G.resolvido||G.pausado)return;const fal=Motor.validar(G.st,G.ch);
   if(fal.length){G.reab++;G.pts=Math.max(0,G.pts-50);hud();tremer();bip('erro');toast(`Chamado reaberto (−50). Ainda falha${fal.length>1?'m':''}:`,fal.slice(0,3).concat(fal.length>3?[`… e mais ${fal.length-3} teste(s)`]:[]));return}
   const naoSalvo=Object.values(G.st.devs).filter(d=>d.naoSalvo).map(d=>d.nome);
   const base=Math.round(BASE[G.ch.pri]*(1+.25*(G.ch.nivel-1))*G.ch.defeitos.length);
   const tempo=G.modo==='plantao'&&!G.estourou?Math.round(150*G.sla/G.slaMax):0;const pD=G.dicas*40,pS=naoSalvo.length*30;
   const total=Math.max(20,base+tempo-pD-pS);G.pts+=total;G.resolvidos++;G.resolvido=true;
-  if(G.pts>G.rec){G.rec=G.pts;ls.set('recorde',G.rec)}
-  const est=G.dicas===0&&G.reab===0?3:G.dicas+G.reab<=2?2:1;
+  if(G.modo==='plantao'&&G.pts>G.rec){G.rec=G.pts;ls.set('recorde',G.rec)}
+  const est=G.dicas===0&&G.reab===0?3:G.dicas+G.reab<=2?2:1;const novoMod=G.modo==='modulo'?salvarModulo(est):false;p_novo=novoMod;
   $('toast').hidden=true;debrief(true,{base,tempo,pD,pS,total,est,naoSalvo});bip('ok');const p=POS[G.ch.defeitos[0].ctx.sw||'CORE']||POS.CORE;burst(p[0],p[1],'var(--accent)',26);hud()}
 function desistir(){if(!G.ativo||G.resolvido)return;G.resolvido=true;if(G.modo==='plantao'){G.vidas--;bip('erro')}debrief(false,{});hud();if(G.modo==='plantao'&&G.vidas<=0)setTimeout(fimDeJogo,600)}
 function debrief(ok,p){const d=$('deb');const ch=G.ch;const tempo=mmss((performance.now()-G.aberto)/1000);
@@ -355,13 +448,19 @@ function debrief(ok,p){const d=$('deb');const ch=G.ch;const tempo=mmss((performa
   if(ok){h+=`<p class="pts">Base ${p.base} + tempo ${p.tempo} − dicas ${p.pD}${p.pS?` − não salvo ${p.pS}`:''}${G.reab?` (reaberturas já descontadas: ${G.reab}×50)`:''} = <b>${p.total} pts</b></p>`;
     if(p.naoSalvo.length)h+=`<p class="aviso">Você não deu <code>write memory</code> em: ${esc(p.naoSalvo.join(', '))}. Se o equipamento reiniciar, a correção some e o chamado volta.</p>`}
   else if(G.modo==='plantao')h+=`<p class="aviso">Ver a solução custou 1 vida. Refaça este tipo de defeito no modo Treino até resolver sem dica.</p>`;
-  h+=`<div class="acoes"><button class="btn" id="bProx" type="button">${G.modo==='plantao'&&G.vidas<=0?'Ver resultado':'Próximo chamado'}</button></div>`;
+  const bt=[];const prox=G.mod!=null?MODS[G.mod+1]:null;
+  if(G.modo==='plantao')bt.push(['bProx',G.vidas<=0?'Ver resultado':'Próximo chamado',()=>G.vidas<=0?fimDeJogo():proximo()]);
+  else if(G.modo==='modulo'&&ok){if(p_novo&&prox)h+=`<p class="fala"><b>Módulo concluído!</b> Liberado: Módulo ${prox.i+1} · ${esc(prox.t)}.${prox.nivel>MODS[G.mod].nivel?` Você chegou ao nível ${NIVEL_NOME[prox.nivel]}.`:''}</p>`;
+    if(prox&&liberado(prox))bt.push(['bProx','Próximo módulo',()=>intro(prox.i)]);bt.push(['bRep','Repetir este módulo',()=>proximo(),true])}
+  else bt.push(['bProx',G.modo==='modulo'?'Tentar outro chamado deste módulo':'Outro chamado',()=>proximo()]);
+  bt.push(['bMenu2','Menu',abrirMenu,true]);
+  h+=`<div class="acoes">${bt.map(b=>`<button class="btn ${b[3]?'sec':''}" id="${b[0]}" type="button">${b[1]}</button>`).join('')}</div>`;
   d.innerHTML=h;d.hidden=false;$('bFechar').disabled=true;$('bDica').disabled=true;$('bDesistir').disabled=true;
-  $('bProx').onclick=()=>{if(G.modo==='plantao'&&G.vidas<=0)return fimDeJogo();proximo()};setTimeout(()=>d.scrollIntoView({behavior:'smooth',block:'start'}),250)}
+  bt.forEach(b=>$(b[0]).onclick=b[2]);setTimeout(()=>d.scrollIntoView({behavior:'smooth',block:'start'}),250)}
 function fimDeJogo(){G.ativo=false;$('fPts').textContent=G.pts+' pts';$('fTxt').innerHTML=`${G.resolvidos} chamado(s) resolvido(s) · recorde ${G.rec} pts.<br>Dica: no modo Treino você repete um tipo de defeito até sair sem dica.`;$('ovFim').hidden=false}
 
 /* ---------- pausa e laço principal ---------- */
-function pausar(v){if(!G.ativo)return;G.pausado=v;$('ovPausa').hidden=!v;$('bPausa').textContent=v?'Continuar':'Pausar';if(!v)$('cmd').focus({preventScroll:true})}
+function pausar(v){if(!G.ativo||(v&&G.modo!=='plantao'))return;G.pausado=v;$('ovPausa').hidden=!v;$('bPausa').textContent=v?'Continuar':'Pausar';if(!v)$('cmd').focus({preventScroll:true})}
 let ult=performance.now();
 function laco(t){const dt=Math.min(.1,(t-ult)/1000);ult=t;
   if(G.ativo&&!G.pausado&&!G.resolvido&&G.modo==='plantao'&&G.ch){const antes=G.sla;G.sla-=dt;
@@ -375,19 +474,23 @@ $('form').onsubmit=e=>{e.preventDefault();const v=$('cmd').value;$('cmd').value=
 $('cmd').addEventListener('keydown',e=>{const id=G.dev,h=G.hist[id]||[];
   if(e.key==='ArrowUp'&&G.hp[id]>0){G.hp[id]--;$('cmd').value=h[G.hp[id]];e.preventDefault()}
   if(e.key==='ArrowDown'){G.hp[id]=Math.min(h.length,(G.hp[id]||0)+1);$('cmd').value=h[G.hp[id]]||'';e.preventDefault()}});
-document.addEventListener('keydown',e=>{if(e.key==='Escape'&&G.ativo){pausar(!G.pausado);return}
+document.addEventListener('keydown',e=>{if(G.noMenu||!$('ovIntro').hidden)return;if(e.key==='Escape'&&G.ativo){pausar(!G.pausado);return}
   if((e.key==='p'||e.key==='P')&&document.activeElement!==$('cmd')&&G.ativo)pausar(!G.pausado)});
 $('bPausa').onclick=()=>pausar(!G.pausado);$('bVoltar').onclick=()=>pausar(false);
-$('bSair').onclick=()=>{G.pausado=false;$('ovPausa').hidden=true;G.resolvido=true;fimDeJogo()};
+$('bSair').onclick=()=>{$('ovPausa').hidden=true;abrirMenu()};
 $('bSom').onclick=()=>{G.som=!G.som;ls.set('som',G.som);$('bSom').textContent='Som: '+(G.som?'on':'off')};
 $('cTutor').onchange=e=>{G.tutor=e.target.checked;ls.set('tutor',G.tutor);tela()};
 $('cPortas').onchange=e=>{G.portas=e.target.checked;ls.set('portas',G.portas);mapa()};
 $('bDica').onclick=dica;$('bFechar').onclick=encerrar;$('bDesistir').onclick=desistir;
-$('bJogar').onclick=comecar;$('bDeNovo').onclick=()=>{$('ovFim').hidden=true;$('ovInicio').hidden=false;montarInicio()};
+$('bDeNovo').onclick=abrirMenu;$('bMenu').onclick=abrirMenu;
+$('mCont').onclick=()=>{const m=proxMod();m?intro(m.i):iniciar('plantao')};$('mTrilha').onclick=()=>mostrarView('vTrilha');$('mTreino').onclick=()=>mostrarView('vTreino');$('mComo').onclick=()=>mostrarView('vComo');
+$('mPlantao').onclick=()=>iniciar('plantao');$('mVoltar').onclick=()=>{fecharMenu();if(G.modo==='plantao')pausar(false)};
+document.querySelectorAll('[data-volta]').forEach(b=>b.onclick=()=>mostrarView('vHome'));
+$('mZerar').onclick=()=>{if($('mZerar').dataset.c){PROG={};ls.set('progresso',PROG);delete $('mZerar').dataset.c;$('mZerar').textContent='zerar progresso';montarMenu()}else{$('mZerar').dataset.c=1;$('mZerar').textContent='clique de novo para confirmar'}};
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&G.ativo&&!G.pausado&&G.modo==='plantao')pausar(true)});
 
 $('bSom').textContent='Som: '+(G.som?'on':'off');$('cTutor').checked=G.tutor;$('cPortas').checked=G.portas;
-montarInicio();
+hud();abrirMenu();
 /* fundo: rede limpa desenhada atrás da tela inicial */
 G.st=Motor.criarRede();mapa();$('ticket').innerHTML='<h1>Plantão de Redes</h1><p>Clique em Começar para receber o primeiro chamado.</p>';
 requestAnimationFrame(laco);

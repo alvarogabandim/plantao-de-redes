@@ -37,5 +37,6 @@ node testes/teste-motor.js   # quebra cada defeito, corrige digitando os comando
 
 ## Fases
 1. ✅ Motor de rede real + mapa da topologia + gerador de defeitos aleatórios
+   - ✅ Trilha de 16 módulos em 3 níveis (Básico, Intermediário, Avançado), com teoria mínima, desbloqueio e estrelas; Plantão usa só os níveis liberados
 2. Captura estilo Wireshark + gestão de mudança com rollback
 3. Modo Construir + diagnóstico de pontos fracos + entrevista simulada

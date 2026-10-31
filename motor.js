@@ -596,7 +596,7 @@ function st_nome(id){return{RECEP:'PC-RECEP01',FAT:'PC-FAT02',LAUDO:'PC-LAUDO03'
 
 function novoChamado(n,seed,op){op=op||{};
   for(let k=0;k<20;k++){const s=(seed+k*7919)>>>0;const r=rng(s);const st=criarRede();
-    const nivel=op.nivel||(n<=3?1:n<=6?2:3);
+    const nivel=Math.min(op.nivelMax||3,op.nivel||(n<=3?1:n<=6?2:3));
     let pool=DEFEITOS.filter(f=>op.forcar?f.id===op.forcar:f.nivel<=nivel);
     if(!op.forcar&&op.evitar){const p2=pool.filter(f=>!op.evitar.includes(f.id));if(p2.length)pool=p2}
     const qtd=!op.forcar&&nivel===3&&n>=8&&r()<0.35?2:1;const defs=[],oc=new Set();
