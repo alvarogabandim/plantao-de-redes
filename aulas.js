@@ -9,7 +9,7 @@ const ip=(st,id)=>M.cfgIP(st,st.devs[id]);
 const AULAS=[
 {id:'a-ip',t:'O que é um endereço IP',obj:'Saber o que é IP e achar o IP de qualquer computador.',dev:'RECEP',passos:[
  {txt:'Toda máquina numa rede tem um <b>endereço IP</b>, como o endereço de uma casa: é por ele que as informações sabem para onde ir. Um IP tem 4 números separados por ponto, por exemplo <b>10.10.20.87</b>.',
-  faca:'No console à direita (aba <b>PC-RECEP01</b>, já aberta), digite <code>ipconfig</code> e aperte Enter.',ok:cmd('RECEP',/^ipconfig/),
+  faca:'No console (aba <b>PC-RECEP01</b>, já aberta), digite <code>ipconfig</code> e aperte Enter.',ok:cmd('RECEP',/^ipconfig/),
   depois:'Achou a linha <b>Endereço IPv4</b>? Esse é o IP deste computador: <b>10.10.20.87</b>. As linhas Máscara e Gateway você vai entender daqui a pouco.'},
  {txt:'Cada equipamento tem o seu próprio IP. Vamos ver o de outro computador.',faca:'Clique na aba <b>PC-FAT02</b> (ou no PC-FAT02 no mapa) e rode <code>ipconfig</code>.',ok:cmd('FAT',/^ipconfig/),
   depois:'O IP dele é <b>10.10.10.42</b>. Compare: 10.10.<b>10</b>.42 e 10.10.<b>20</b>.87. O terceiro número é diferente porque eles estão em <b>setores (redes) diferentes</b>: Faturamento e Recepção.'},

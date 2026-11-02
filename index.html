@@ -5,6 +5,14 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Plantão de Redes</title>
 <meta name="description" content="Simulador de chamados de rede em português: motor de rede real, mapa ao vivo e defeitos aleatórios.">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0f1a1c">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Plantão">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="apple-touch-icon" href="icones/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="icones/favicon-32.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..100,600;75..100,800&family=IBM+Plex+Sans:wght@400;600&family=IBM+Plex+Mono:wght@400;600&display=swap">
 <style>
@@ -174,6 +182,26 @@ details.doc summary{cursor:pointer;font-weight:600;font-size:.9rem;color:var(--a
 .roteiro{background:var(--p3s);border-radius:10px;padding:10px 13px}.roteiro .rot{display:block;font:600 .72rem var(--mono);letter-spacing:.06em;color:var(--p3)}.roteiro ol{margin:4px 0;padding-left:20px;display:grid;gap:4px;font-size:.92rem}
 .doc details{margin-top:6px}.doc details summary{font-size:.84rem}
 .grande{font:800 2.6rem/1 var(--display);font-stretch:80%;color:var(--accent)}
+.navm{display:none}
+@media (max-width:760px){
+  body{padding-bottom:calc(62px + env(safe-area-inset-bottom))}
+  .mesa{padding-top:10px;gap:10px}
+  .navm{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:15;background:var(--panel);border-top:1px solid var(--line);padding:4px 6px calc(4px + env(safe-area-inset-bottom))}
+  .navm button{flex:1;display:grid;justify-items:center;gap:1px;background:none;border:0;border-radius:10px;padding:5px 0;font:600 .74rem var(--body);color:var(--mute);cursor:pointer}
+  .navm button span{font-size:1.15rem;line-height:1.2}
+  .navm button[aria-pressed="true"]{color:var(--accent);background:var(--accent-soft)}
+  body[data-aba="chamado"] .mapa,body[data-aba="chamado"] .console,body[data-aba="chamado"] #acoesCh,body[data-aba="chamado"] #dicas{display:none}
+  body[data-aba="mapa"] #ticket,body[data-aba="mapa"] .console,body[data-aba="mapa"] #acoesCh,body[data-aba="mapa"] #dicas,body[data-aba="mapa"] #deb{display:none}
+  body[data-aba="console"] .mapa,body[data-aba="console"] #deb{display:none}
+  body[data-aba="console"]:not(.aula) #ticket{display:none}
+  .tela{height:calc(100dvh - 330px);min-height:230px}
+  body.aula .tela{height:34dvh;min-height:190px}
+  .linha input{font-size:16px}
+  .chips{flex-wrap:nowrap;overflow-x:auto;padding-bottom:10px}
+  .chips button{flex:none}
+  .toast{bottom:calc(74px + env(safe-area-inset-bottom))}
+  .acoes .btn{padding:9px 12px}
+}
 @media (max-width:1000px){.mesa{grid-template-columns:1fr}.tela{height:320px}.sla{width:120px}}
 @media (max-width:560px){.topo{position:static}.hud .chip.opc{display:none}.modos{grid-template-columns:1fr}.card{padding:14px}}
 </style>
@@ -209,7 +237,7 @@ details.doc summary{cursor:pointer;font-weight:600;font-size:.9rem;color:var(--a
     <div class="console">
       <div class="abas" id="abas" role="tablist"></div>
       <div class="tela" id="tela" role="log" aria-live="polite"></div>
-      <form class="linha" id="form"><label for="cmd" id="prompt"></label><input id="cmd" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="send" placeholder="digite um comando (ajuda)"></form>
+      <form class="linha" id="form"><label for="cmd" id="prompt"></label><input id="cmd" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="send" placeholder="digite um comando (ajuda)"></form>
       <div class="chips" id="chips"></div>
     </div>
     <div class="acoes" id="acoesCh">
@@ -223,6 +251,11 @@ details.doc summary{cursor:pointer;font-weight:600;font-size:.9rem;color:var(--a
   </div>
 </main>
 
+<nav class="navm" id="navm" aria-label="Seções">
+  <button type="button" data-aba="chamado"><span>📋</span>Chamado</button>
+  <button type="button" data-aba="mapa"><span>🗺️</span>Mapa</button>
+  <button type="button" data-aba="console"><span>⌨️</span>Console</button>
+</nav>
 <div class="ov menu" id="ovMenu">
   <div class="card mcard">
     <section id="vHome">
@@ -236,6 +269,7 @@ details.doc summary{cursor:pointer;font-weight:600;font-size:.9rem;color:var(--a
         <button class="op" id="mPlantao" type="button"><b>Plantão</b><small id="mPlantaoS"></small></button>
         <button class="op" id="mTreino" type="button"><b>Treino livre</b><small>Repita qualquer módulo já concluído, sem tempo.</small></button>
         <button class="op" id="mComo" type="button"><b>Como jogar</b><small>Consoles, mapa, dicas, pontos e atalhos.</small></button>
+        <button class="op" id="mInstalar" type="button" hidden><b>Instalar no celular</b><small id="mInstalarS">Vira um app na tela inicial e funciona sem internet.</small></button>
       </div>
       <p class="rodape">Recorde do plantão: <b id="iRec">0</b> pts · <a href="v1/">Versão 1 (9 chamados roteirizados)</a> · <button class="lnk" id="mZerar" type="button">zerar progresso</button></p>
     </section>
@@ -338,7 +372,7 @@ function montarMenu(){$('iRec').textContent=G.rec;const n=MODS.filter(feito).len
   $('treinoLista').querySelectorAll('.mod').forEach(b=>b.onclick=()=>{const m=MODS[+b.dataset.m];m.tipo==='aula'?iniciarAula(m.i):iniciar('treino',m.i)})}
 function intro(i){const m=MODS[i];if(m.tipo==='aula'){$('introCard').innerHTML=`<div class="intro" style="display:grid;gap:10px">
   <div class="cab" style="font:600 .76rem var(--mono);color:var(--mute)">${rotulo(m)} de ${MODS.length} · Trainee</div><h2>${esc(m.t)}</h2><h3>Nesta aula</h3><p>${esc(m.obj)}</p>
-  <p class="teoria">Passo a passo: o texto explica o mínimo, você digita o comando no console da direita e vê o resultado na rede. Clique em qualquer comando destacado para copiá-lo.</p>
+  <p class="teoria">Passo a passo: o texto explica o mínimo, você digita o comando no console (aba Console no celular) e vê o resultado na rede. Clique em qualquer comando destacado para copiá-lo.</p>
   ${m.i===0?'<p class="mute">Não sabe nada de rede? Perfeito, foi feito para começar daqui.</p>':''}
   <div class="acoes"><button class="btn" id="iGo" type="button">Começar a aula</button><button class="btn sec" id="iBack" type="button">Voltar</button></div></div>`;
   $('ovIntro').hidden=false;$('iGo').onclick=()=>iniciarAula(i);$('iBack').onclick=()=>{$('ovIntro').hidden=true};return}
@@ -346,7 +380,7 @@ function intro(i){const m=MODS[i];if(m.tipo==='aula'){$('introCard').innerHTML=`
   <div class="cab" style="font:600 .76rem var(--mono);color:var(--mute)">${rotulo(m)} de ${MODS.length} · ${FAIXA[m.faixa]}</div>
   <h2>${esc(m.t)}</h2><h3>Objetivo</h3><p>${esc(m.obj)}</p><h3>O mínimo de teoria</h3><p class="teoria">${esc(m.teo)}</p>
   <h3>Comandos que você vai usar</h3><div class="cmds">${m.cmd.map(c=>`<code>${esc(c)}</code>`).join('')}</div>
-  ${m.id==='gw'?'<p class="mute">Primeiro chamado sem passo a passo! Comece pelo PC citado no chamado (ipconfig, ping). Travou? Peça dica, é para isso que ela existe.</p><p class="mute">Lembre: Os consoles ficam à direita: troque de equipamento pelas abas ou clicando no mapa, e use os botões "atalhos" para preencher comandos.</p>':''}
+  ${m.id==='gw'?'<p class="mute">Primeiro chamado sem passo a passo! Comece pelo PC citado no chamado (ipconfig, ping). Travou? Peça dica, é para isso que ela existe.</p><p class="mute">Lembre: Os consoles ficam na aba Console (no celular) ou à direita (no PC): troque de equipamento pelas abas ou clicando no mapa, e use os botões "atalhos" para preencher comandos.</p>':''}
   <p class="mute">Sem tempo. Tente sozinho primeiro; cada dica tira uma estrela, não pontos.</p>
   <div class="acoes"><button class="btn" id="iGo" type="button">Abrir o chamado</button><button class="btn sec" id="iBack" type="button">Voltar</button></div></div>`;
   $('ovIntro').hidden=false;$('iGo').onclick=()=>iniciar('modulo',i);$('iBack').onclick=()=>{$('ovIntro').hidden=true}}
@@ -354,7 +388,7 @@ function iniciar(modo,i){const m=i!=null?MODS[i]:null;Object.assign(G,{modo,mod:
   $('ovIntro').hidden=true;fecharMenu();proximo()}
 function iniciarAula(i){const m=MODS[i];Object.assign(G,{modo:'aula',mod:i,passo:0,passoOk:false,ativo:true,pausado:false,resolvido:false,ch:null,n:0,st:Motor.criarRede(),log:{},hist:{},hp:{},anim:null,fx:[],aberto:performance.now()});
   G.dev=m.dev;for(const id of ABAS)G.log[id]=[['sys',boasVindas(id)]];$('ovIntro').hidden=true;fecharMenu();$('dicas').innerHTML='';$('deb').hidden=true;$('acoesCh').hidden=true;
-  aulaRender();abas();tela();mapa();hud();bip('novo');window.scrollTo({top:0,behavior:'smooth'})}
+  aulaRender();abas();tela();mapa();hud();aba('console');bip('novo');window.scrollTo({top:0,behavior:'smooth'})}
 function aulaRender(){const m=MODS[G.mod],p=m.passos[G.passo],ult=G.passo===m.passos.length-1;
   let h=`<div class="cab"><span>${rotulo(m)}</span><span class="pri P3">Trainee</span><span>passo ${G.passo+1} de ${m.passos.length}</span></div><h1>${esc(m.t)}</h1><p>${p.txt}</p>`;
   if(p.faca)h+=`<div class="faca"><b class="rot">FAÇA</b>${p.faca}</div>`;
@@ -365,7 +399,7 @@ function aulaRender(){const m=MODS[G.mod],p=m.passos[G.passo],ult=G.passo===m.pa
   const b=$('bPasso');if(b)b.onclick=()=>{if(ult)return concluirAula();G.passo++;G.passoOk=false;aulaRender();$('ticket').scrollIntoView({behavior:'smooth',block:'start'})}}
 function verificaAula(dev,v,R){if(G.modo!=='aula'||G.resolvido)return;const p=MODS[G.mod].passos[G.passo];if(!p.ok||G.passoOk)return;let ok=false;try{ok=p.ok({dev,cmd:v.trim().toLowerCase(),R,st:G.st})}catch(e){}
   if(ok){G.passoOk=true;aulaRender();setTimeout(()=>bip('ok'),120);const t=$('ticket');t.classList.remove('brilha');void t.offsetWidth;t.classList.add('brilha')}}
-function concluirAula(){const m=MODS[G.mod];const novo=salvarModulo(3);G.resolvido=true;const prox=MODS[m.i+1];
+function concluirAula(){aba('chamado');const m=MODS[G.mod];const novo=salvarModulo(3);G.resolvido=true;const prox=MODS[m.i+1];
   let h=`<h2>Aula concluída!</h2>`;if(novo&&prox)h+=`<p class="fala">Liberado: <b>${rotulo(prox)} · ${esc(prox.t)}</b>.${prox.faixa>m.faixa?` Você chegou ao <b>${FAIXA[prox.faixa]}</b>: agora são chamados reais, sem passo a passo. Use as dicas sem medo.`:''}</p>`;
   h+=`<div class="acoes">${prox?'<button class="btn" id="bProx" type="button">Próxima etapa</button>':''}<button class="btn sec" id="bRep" type="button">Refazer aula</button><button class="btn sec" id="bMenu2" type="button">Menu</button></div>`;
   const d=$('deb');d.innerHTML=h;d.hidden=false;if(prox)$('bProx').onclick=()=>intro(prox.i);$('bRep').onclick=()=>iniciarAula(m.i);$('bMenu2').onclick=abrirMenu;burst(POS.CORE[0],POS.CORE[1],'var(--accent)',26);bip('ok');
@@ -373,12 +407,14 @@ function concluirAula(){const m=MODS[G.mod];const novo=salvarModulo(3);G.resolvi
 function salvarModulo(est){const m=MODS[G.mod];const antes=PROG[m.id]?PROG[m.id].est:0;PROG[m.id]={est:Math.max(antes,est)};ls.set('progresso',PROG);return!antes}
 
 /* ---------- chamado ---------- */
+const celular=()=>matchMedia('(max-width:760px)').matches;
+function aba(n){document.body.dataset.aba=n;document.querySelectorAll('#navm button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.aba===n));if(celular())window.scrollTo({top:0})}
 function proximo(){G.n++;const seed=((Date.now()>>>0)^Math.imul(G.n,2654435761))>>>0;
   const r=Motor.novoChamado(G.n,seed,{forcar:G.forcar,evitar:G.recentes.slice(-4),nivelMax:G.nivelMax||3});G.st=r.st;G.ch=r.ch;r.ch.defeitos.forEach(x=>G.recentes.push(x.f.id));
   Object.assign(G,{slaMax:SLA[G.ch.pri],sla:SLA[G.ch.pri],estourou:false,dicas:0,reab:0,resolvido:false,log:{},hist:{},hp:{},anim:null,fx:[],aberto:performance.now()});
   const eq=G.ch.defeitos[0].ticket.equip;G.dev=ABAS.find(id=>eq.includes(G.st.devs[id].nome))||'RECEP';
   for(const id of ABAS)G.log[id]=[['sys',boasVindas(id)]];
-  $('dicas').innerHTML='';$('deb').hidden=true;$('acoesCh').hidden=false;$('bFechar').disabled=false;$('bDica').disabled=false;$('bDesistir').disabled=false;
+  aba('chamado');$('dicas').innerHTML='';$('deb').hidden=true;$('acoesCh').hidden=false;$('bFechar').disabled=false;$('bDica').disabled=false;$('bDesistir').disabled=false;
   $('bDesistir').textContent=G.modo==='plantao'?'Ver solução (perde 1 vida)':'Ver solução';$('bDica').dataset.custo=G.modo==='plantao'?' · −40':' · −1 ★';
   ticket();abas();tela();mapa();hud();atualizaDica();bip('novo');window.scrollTo({top:0,behavior:'smooth'})}
 function boasVindas(id){const d=G.st.devs[id];
@@ -419,7 +455,7 @@ function ticket(){const ch=G.ch,t0=ch.defeitos[0].ticket;const hora=new Date();h
 /* ---------- console ---------- */
 function abas(){$('abas').innerHTML=ABAS.map(id=>{const d=G.st.devs[id];return`<button type="button" role="tab" data-d="${id}" aria-pressed="${id===G.dev}">${d.nome}<small>${TAG[d.tipo]}${d.naoSalvo?' · não salvo':''}</small></button>`}).join('');
   $('abas').querySelectorAll('button').forEach(b=>b.onclick=()=>selecionar(b.dataset.d));const at=$('abas').querySelector('[aria-pressed=true]');if(at)at.scrollIntoView({block:'nearest',inline:'nearest'})}
-function selecionar(id){if(!G.st.devs[id]||id==='NET')return;G.dev=id;abas();tela();mapa();$('cmd').focus({preventScroll:true})}
+function selecionar(id,doMapa){if(!G.st.devs[id]||id==='NET')return;if(doMapa)aba('console');G.dev=id;abas();tela();mapa();$('cmd').focus({preventScroll:true})}
 function tela(){const id=G.dev;const linhas=G.log[id]||[];
   $('tela').innerHTML=linhas.filter(([k])=>G.tutor||k!=='note').map(([k,t])=>k==='cmd'?`<div><span class="pr">${esc(t[0])}</span> ${esc(t[1])}</div>`:`<div class="${k}">${esc(t)||' '}</div>`).join('');
   $('tela').scrollTop=$('tela').scrollHeight;$('prompt').textContent=CLI.prompt(G.st,id);
@@ -452,7 +488,7 @@ function mapa(){const st=G.st;if(!st)return;const L=st.l2;let s='';
       <rect width="${w}" height="${h}" rx="9"/><rect class="tgb" x="6" y="7" width="26" height="15" rx="4"/><text class="tg" x="19" y="18" text-anchor="middle">${TAG[d.tipo]}</text>
       <text class="nm" x="38" y="18">${d.nome}</text><text class="sb ${bad?'bad':''}" x="38" y="32">${esc(sub)}</text></g>`}
   s+='<g id="fx"></g><circle id="pkt" r="0" cx="-20" cy="-20"/><g id="xg"></g>';
-  $('svg').innerHTML=s;$('svg').querySelectorAll('.nd').forEach(g=>{g.onclick=()=>selecionar(g.dataset.d);g.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();selecionar(g.dataset.d)}}})}
+  $('svg').innerHTML=s;$('svg').querySelectorAll('.nd').forEach(g=>{g.onclick=()=>selecionar(g.dataset.d,true);g.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();selecionar(g.dataset.d)}}})}
 function animar(a){const pts=a.trilha.filter(id=>POS[id]).map(id=>POS[id].slice());if(!pts.length)return;if(pts.length===1)pts.push(pts[0].slice());G.anim={pts,ok:a.ok,i:0,t:0,fim:0}}
 function passoAnim(dt){const A=G.anim;const c=$('pkt'),xg=$('xg');if(!A||!c)return;
   if(A.fim>0){A.fim-=dt;if(A.fim<=0){c.setAttribute('r',0);xg.innerHTML='';G.anim=null}else xg.style.opacity=Math.min(1,A.fim);return}
@@ -467,14 +503,14 @@ function passoFx(dt){const g=$('fx');if(!g)return;if(!G.fx.length){if(g.childEle
 
 /* ---------- HUD, SLA, dicas ---------- */
 const mmss=s=>{s=Math.max(0,Math.ceil(s));return String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0')};
-function hud(){$('bPausa').hidden=G.modo!=='plantao'||!G.ativo;$('hPts').parentNode.hidden=G.modo!=='plantao';$('hN').textContent=G.n||'–';$('hNiv').textContent=G.ch?G.ch.nivel:'–';$('hPts').textContent=G.pts;$('hRec').textContent=G.rec;
+function hud(){document.body.classList.toggle('aula',G.modo==='aula'&&G.ativo);$('bPausa').hidden=G.modo!=='plantao'||!G.ativo;$('hPts').parentNode.hidden=G.modo!=='plantao';$('hN').textContent=G.n||'–';$('hNiv').textContent=G.ch?G.ch.nivel:'–';$('hPts').textContent=G.pts;$('hRec').textContent=G.rec;
   $('hVidas').style.color=G.modo!=='plantao'?'var(--mute)':'';$('hVidas').textContent=G.modo==='aula'?'aula '+(G.mod+1):G.modo==='modulo'?'chamado '+(G.mod+1):G.modo==='treino'?'treino':'♥'.repeat(G.vidas)+'♡'.repeat(3-G.vidas);
   if(G.modo!=='plantao'||!G.ch){$('slaTxt').textContent='sem SLA';$('slaBar').style.width='0%';return}
   $('slaBar').style.width=(G.sla/G.slaMax*100)+'%';$('slaTxt').textContent=G.estourou?'SLA estourado':'SLA '+mmss(G.sla);$('sla').classList.toggle('alerta',G.sla<60||G.estourou)}
 function todasDicas(){return G.ch.defeitos.flatMap(x=>x.f.dicas(x.ctx))}
 function atualizaDica(){const n=todasDicas().length,r=n-G.dicas;$('bDica').textContent=r>0?`Pedir dica (${r})${$('bDica').dataset.custo||''}`:'Sem mais dicas';$('bDica').disabled=r<=0||G.resolvido}
 function dica(){const ds=todasDicas();if(G.dicas>=ds.length||G.resolvido)return;const t=ds[G.dicas];G.dicas++;$('dicas').insertAdjacentHTML('beforeend',`<div class="dica"><b>DICA ${G.dicas}</b>${t}</div>`);atualizaDica()}
-function toast(titulo,itens,ok){const t=$('toast');t.className='toast'+(ok?' ok':'');t.innerHTML=`<b>${esc(titulo)}</b>${itens&&itens.length?'<ul>'+itens.map(i=>`<li>${esc(i)}</li>`).join('')+'</ul>':''}`;t.hidden=false;clearTimeout(toast.t);toast.t=setTimeout(()=>t.hidden=true,ok?2500:6000)}
+function toast(titulo,itens,ok,ms){const t=$('toast');t.className='toast'+(ok?' ok':'');t.innerHTML=`<b>${esc(titulo)}</b>${itens&&itens.length?'<ul>'+itens.map(i=>`<li>${esc(i)}</li>`).join('')+'</ul>':''}`;t.hidden=false;clearTimeout(toast.t);toast.t=setTimeout(()=>t.hidden=true,ms||(ok?2500:6000))}
 function tremer(){const e=$('ticket');e.classList.remove('treme');void e.offsetWidth;e.classList.add('treme')}
 
 /* ---------- encerrar / solução ---------- */
@@ -489,7 +525,7 @@ function encerrar(){if(!G.ativo||G.resolvido||G.pausado)return;const fal=Motor.v
   const est=G.dicas===0&&G.reab===0?3:G.dicas+G.reab<=2?2:1;const novoMod=G.modo==='modulo'?salvarModulo(est):false;p_novo=novoMod;
   $('toast').hidden=true;debrief(true,{base,tempo,pD,pS,total,est,naoSalvo});bip('ok');const p=POS[G.ch.defeitos[0].ctx.sw||'CORE']||POS.CORE;burst(p[0],p[1],'var(--accent)',26);hud()}
 function desistir(){if(!G.ativo||G.resolvido)return;G.resolvido=true;if(G.modo==='plantao'){G.vidas--;bip('erro')}debrief(false,{});hud();if(G.modo==='plantao'&&G.vidas<=0)setTimeout(fimDeJogo,600)}
-function debrief(ok,p){const d=$('deb');const ch=G.ch;const tempo=mmss((performance.now()-G.aberto)/1000);
+function debrief(ok,p){aba('chamado');const d=$('deb');const ch=G.ch;const tempo=mmss((performance.now()-G.aberto)/1000);
   let h=ok?`<h2>Chamado resolvido em ${tempo}</h2><div class="estrelas" aria-label="${p.est} de 3 estrelas">${'★'.repeat(p.est)}${'☆'.repeat(3-p.est)}</div>`:`<h2 style="color:var(--p2)">Solução do chamado</h2>`;
   ch.defeitos.forEach((x,i)=>{h+=`<h3>${ch.defeitos.length>1?`Defeito ${i+1} · `:''}${esc(x.f.area)}</h3><p>${esc(x.f.causa(x.ctx))}</p><h3>Correção</h3><ul>${x.f.correcao(x.ctx).map(c=>`<li><code>${esc(c)}</code></li>`).join('')}</ul><h3>O que um analista pleno leva disso</h3><p class="fala">${esc(x.f.licao)}</p>`});
   if(ok){h+=`<p class="pts">Base ${p.base} + tempo ${p.tempo} − dicas ${p.pD}${p.pS?` − não salvo ${p.pS}`:''}${G.reab?` (reaberturas já descontadas: ${G.reab}×50)`:''} = <b>${p.total} pts</b></p>`;
@@ -537,6 +573,15 @@ $('mZerar').onclick=()=>{if($('mZerar').dataset.c){PROG={};ls.set('progresso',PR
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&G.ativo&&!G.pausado&&G.modo==='plantao')pausar(true)});
 
 $('bSom').textContent='Som: '+(G.som?'on':'off');$('cTutor').checked=G.tutor;$('cPortas').checked=G.portas;
+document.querySelectorAll('#navm button').forEach(b=>b.onclick=()=>aba(b.dataset.aba));aba('chamado');
+/* app instalável + offline */
+let pedidoInstalar=null;const instalado=()=>matchMedia('(display-mode: standalone)').matches||navigator.standalone;
+const ehIOS=/iphone|ipad|ipod/i.test(navigator.userAgent);
+window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();pedidoInstalar=e;if(!instalado())$('mInstalar').hidden=false});
+if(ehIOS&&!instalado()){$('mInstalar').hidden=false;$('mInstalarS').textContent='No iPhone: toque em Compartilhar (quadrado com seta) → "Adicionar à Tela de Início".'}
+$('mInstalar').onclick=async()=>{if(pedidoInstalar){pedidoInstalar.prompt();const r=await pedidoInstalar.userChoice;if(r.outcome==='accepted')$('mInstalar').hidden=true;pedidoInstalar=null}else if(ehIOS)toast('Para instalar no iPhone',['Abra este site no Safari','Toque em Compartilhar (quadrado com seta para cima)','Escolha "Adicionar à Tela de Início"'],true,9000)};
+window.addEventListener('appinstalled',()=>{$('mInstalar').hidden=true});
+if('serviceWorker' in navigator&&location.protocol==='https:')navigator.serviceWorker.register('sw.js').catch(()=>{});
 hud();abrirMenu();
 /* fundo: rede limpa desenhada atrás da tela inicial */
 G.st=Motor.criarRede();mapa();$('ticket').innerHTML='<h1>Plantão de Redes</h1><p>Clique em Começar para receber o primeiro chamado.</p>';
