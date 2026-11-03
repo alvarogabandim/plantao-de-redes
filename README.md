@@ -41,4 +41,7 @@ node testes/teste-motor.js   # quebra cada defeito, corrige digitando os comando
    - ✅ App para celular: instalável na tela inicial (PWA), funciona sem internet, abas Chamado/Mapa/Console
    - ✅ Trilha Trainee → Júnior → Pleno: 9 aulas guiadas do zero (IP, ping, gateway, DNS, switch, VLAN, trunk, core, firewall) + 16 chamados reais com desbloqueio e estrelas; Plantão usa só o que já foi liberado
 2. Captura estilo Wireshark + gestão de mudança com rollback
+   - ✅ Captura de pacotes: pontos de captura em qualquer cabo, ARP/DHCP/DNS/ICMP/TCP/STP/LACP gerados pelo motor, filtros no estilo Wireshark, detalhes por camada em português, bytes reais e exportação .pcap
+   - ✅ 4 aulas de captura no Trainee (primeira captura, ARP, DHCP, DNS)
+   - ✅ Botões de pular passo, aula e chamado
 3. Modo Construir + diagnóstico de pontos fracos + entrevista simulada

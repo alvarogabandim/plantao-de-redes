@@ -6,6 +6,9 @@
 const M=raiz.Motor||require('./motor.js');const CLI=raiz.CLI||require('./cli.js');
 const cmd=(dev,re)=>c=>c.dev===dev&&re.test(c.cmd);
 const ip=(st,id)=>M.cfgIP(st,st.devs[id]);
+const Cap=()=>raiz.Captura||require('./captura.js');
+const capEm=(st,dev)=>!!(st.cap&&st.cap.ativo&&st.cap.ix===Cap().pontoDe(st,dev));
+const tem=(st,fn)=>!!(st.cap&&st.cap.frames.some(fn));
 const AULAS=[
 {id:'a-ip',t:'O que é um endereço IP',obj:'Saber o que é IP e achar o IP de qualquer computador.',dev:'RECEP',passos:[
  {txt:'Toda máquina numa rede tem um <b>endereço IP</b>, como o endereço de uma casa: é por ele que as informações sabem para onde ir. Um IP tem 4 números separados por ponto, por exemplo <b>10.10.20.87</b>.',
@@ -98,7 +101,59 @@ const AULAS=[
  {txt:'Vamos ver a regra que deixa o hospital navegar.',faca:'Na aba <b>FGT-HVC</b>: <code>show firewall policy</code>',ok:cmd('FGT',/^show\s+firewall\s+policy/),
   depois:'Política 1: da LAN (<b>port2</b>) para a internet (<b>port1</b>), action <b>accept</b>, com <b>nat enable</b>. Sem ela, nada sai.'},
  {txt:'Agora veja o NAT na prática com uma captura de pacotes.',faca:'No PC-RECEP01 rode <code>ping 8.8.8.8</code>. Depois, no FGT-HVC: <code>diagnose sniffer packet any \'icmp\' 4</code>',ok:cmd('FGT',/^diag\S*\s+sniffer/),
-  depois:'Na <b>port2 in</b> o pacote chega com 10.10.20.87; na <b>port1 out</b> sai com <b>200.160.2.2</b>. Isso é o NAT. <b>Fim do Trainee!</b> Agora você tem a base para os chamados do nível Júnior.'}]},
+  depois:'Na <b>port2 in</b> o pacote chega com 10.10.20.87; na <b>port1 out</b> sai com <b>200.160.2.2</b>. Isso é o NAT. <b>Fim do Trainee!</b> Falta só a parte de captura de pacotes (próximas 4 aulas).'}]},
+/* ---------- Trainee · captura de pacotes (Fase 2) ---------- */
+{id:'a-cap1',t:'Primeira captura (Wireshark)',obj:'Gravar pacotes, ler as camadas e filtrar, como no Wireshark.',dev:'RECEP',passos:[
+ {txt:'O <b>Wireshark</b> é o programa que mostra cada pacote que passa num cabo. A <b>Captura de pacotes</b> daqui funciona igual: você escolhe onde "escutar", grava, faz o tráfego acontecer e depois lê.',
+  faca:'No card <b>Captura de pacotes</b> (no celular, aba <b>Captura</b>), escolha <b>PC-RECEP01 · cabo do equipamento</b> e clique <b>● Gravar</b>.',ok:c=>c.dev==='CAP'&&c.cmd==='gravar'&&capEm(c.st,'RECEP'),
+  depois:'Gravando. No mapa, o cabo escutado ganhou a marca <b>REC</b>.'},
+ {txt:'Agora gere tráfego.',faca:'No console do <b>PC-RECEP01</b>: <code>ping 10.10.1.20</code>.',ok:c=>c.dev==='RECEP'&&/^ping\s+10\.10\.1\.20$/.test(c.cmd)&&capEm(c.st,'RECEP'),
+  depois:'Os pacotes do ping passaram por esse cabo e foram gravados.'},
+ {txt:'Hora de ler.',faca:'Clique em <b>■ Parar</b>. Depois clique numa linha rosa com <b>Echo (ping) request</b>.',ok:c=>c.dev==='CAP'&&c.cmd==='sel'&&c.R&&c.R.l4&&c.R.l4.icmp&&c.R.l4.icmp.t===8,
+  depois:'Embaixo aparecem as <b>camadas</b>, de fora para dentro: <b>Ethernet</b> (MAC de quem mandou e de quem recebe neste cabo), <b>IPv4</b> (IP de origem e destino final, e o TTL) e <b>ICMP</b> (o ping: tipo 8 = pedido). Repare: o MAC de destino é o do <b>gateway</b> (CORE-01 Vlan20), não o do PACS. O PC entrega ao gateway, mas o IP de destino continua 10.10.1.20.'},
+ {txt:'Lista cheia? Filtre, igual no Wireshark.',faca:'Digite <code>icmp</code> no campo de filtro e aperte Enter (ou toque no botão <b>icmp</b>).',ok:c=>c.dev==='CAP'&&c.cmd==='filtro'&&/^icmp$/i.test(c.R||''),
+  depois:'Ficaram só os pings: 4 pedidos (request) e 4 respostas (reply). O que sumiu: <b>STP</b> (o switch avisando a rede a cada 2 s) e <b>ARP</b>, assunto da próxima aula.'},
+ {txt:'Agora uma conexão TCP, como a do sistema web do PACS.',faca:'Clique <b>● Gravar</b> de novo, rode <code>tnc 10.10.1.20 -port 443</code> no PC-RECEP01, clique <b>■ Parar</b> e filtre <code>tcp</code>.',
+  ok:c=>c.dev==='CAP'&&c.cmd==='filtro'&&/^tcp$/i.test(c.R||'')&&tem(c.st,f=>f.l4&&f.l4.tcp&&f.l4.tcp.flags==='SA'),
+  depois:'O <b>aperto de mão em 3 passos</b> do TCP: <b>SYN</b> ("quero conectar") → <b>SYN, ACK</b> ("pode vir") → <b>ACK</b> ("combinado"). Sem esses 3, não existe conexão. É a primeira coisa que um analista procura quando "o sistema não abre".'},
+ {txt:'<b>Resumo:</b> escolha onde escutar → grave → gere tráfego → pare → filtre → clique e leia as camadas. É o mesmo fluxo do Wireshark e do tcpdump. Se quiser, o botão <b>.pcap</b> baixa a captura para abrir no Wireshark de verdade no PC.'}]},
+
+{id:'a-cap2',t:'ARP: quem tem este IP?',obj:'Ver o ARP acontecendo e provar que um gateway não existe.',dev:'RECEP',passos:[
+ {txt:'O IP é o endereço lógico. Dentro do cabo, quem entrega é o <b>MAC</b> (endereço físico da placa de rede). Antes de mandar, o PC precisa descobrir o MAC: ele pergunta para todos "quem tem o IP X?". Isso é o <b>ARP</b>.',
+  faca:'Grave no <b>PC-RECEP01 · cabo do equipamento</b>. No console do PC: <code>arp -d</code> (apaga a memória de MACs) e depois <code>ping 10.10.1.20</code>.',
+  ok:c=>c.dev==='RECEP'&&/^ping/.test(c.cmd)&&capEm(c.st,'RECEP')&&tem(c.st,f=>f.eth==='arp'),depois:'Gravado.'},
+ {txt:'Veja só o ARP.',faca:'Clique <b>■ Parar</b> e filtre <code>arp</code>.',ok:c=>c.dev==='CAP'&&c.cmd==='filtro'&&/^arp$/i.test(c.R||'')&&tem(c.st,f=>f.eth==='arp'&&f.arp.op===2),
+  depois:'Dois pacotes: <b>Who has 10.10.20.1? Tell 10.10.20.87</b> ("quem tem 10.10.20.1? avise 10.10.20.87"), enviado para <b>Broadcast</b> (todos), e <b>10.10.20.1 is at 00:a1:c0:de:00:14</b>, a resposta do gateway. O PC perguntou pelo <b>gateway</b>, não pelo PACS, porque o PACS está em outra rede.'},
+ {txt:'Agora com o gateway errado da aula 3.',faca:'No PC: <code>netsh interface ip set address "Ethernet" static 10.10.20.87 255.255.255.0 10.10.20.254</code>. Grave de novo, rode <code>ping 10.10.1.20</code>, pare e filtre <code>arp</code>.',
+  ok:c=>c.dev==='CAP'&&c.cmd==='filtro'&&/^arp$/i.test(c.R||'')&&tem(c.st,f=>f.eth==='arp'&&f.arp.tpa==='10.10.20.254')&&!tem(c.st,f=>f.eth==='arp'&&f.arp.op===2&&f.arp.spa==='10.10.20.254'),
+  depois:'Só perguntas <b>Who has 10.10.20.254?</b>, repetidas e <b>sem resposta</b>: ninguém tem esse IP. Na vida real, é assim que você prova que o gateway configurado não existe, sem depender do que o usuário diz.'},
+ {txt:'Conserte.',faca:'No PC: <code>netsh interface ip set address "Ethernet" dhcp</code> e depois <code>ping 10.10.1.20</code>.',ok:c=>c.dev==='RECEP'&&/^ping/.test(c.cmd)&&c.st.devs.RECEP.nic.dhcp&&M.ping(c.st,'RECEP','10.10.1.20').tipo==='ok',
+  depois:'<b>Resumo:</b> ARP traduz IP em MAC dentro da mesma rede. Pergunta sem resposta = o IP não existe naquela rede (gateway errado, equipamento desligado ou VLAN errada).'}]},
+
+{id:'a-cap3',t:'DHCP em 4 pacotes',obj:'Ver como o PC ganha IP e por que aparece o 169.254.',dev:'FAT',passos:[
+ {txt:'Quando o PC liga, ele não tem IP. Ele pede a um servidor <b>DHCP</b> em 4 passos, que se decoram como <b>DORA</b>: <b>D</b>iscover, <b>O</b>ffer, <b>R</b>equest, <b>A</b>ck.',
+  faca:'Grave no <b>PC-FAT02 · cabo do equipamento</b>. No console do <b>PC-FAT02</b>: <code>ipconfig /release</code> e depois <code>ipconfig /renew</code>.',
+  ok:c=>c.dev==='FAT'&&/renew/.test(c.cmd)&&capEm(c.st,'FAT')&&tem(c.st,f=>f.l4&&f.l4.dhcp&&f.l4.dhcp.t===5),depois:'O PC pegou IP de novo, e tudo foi gravado.'},
+ {txt:'Leia a conversa.',faca:'Clique <b>■ Parar</b>, filtre <code>dhcp</code> e clique no pacote <b>DHCP Offer</b>.',ok:c=>c.dev==='CAP'&&c.cmd==='sel'&&c.R&&c.R.l4&&c.R.l4.dhcp&&c.R.l4.dhcp.t===2,
+  depois:'<b>Discover</b>: "tem algum servidor DHCP aí?", de 0.0.0.0 para 255.255.255.255 (todos). <b>Offer</b>: o CORE-01 oferece o IP 10.10.10.42, com máscara, gateway e DNS (veja nos detalhes). <b>Request</b>: "quero esse". <b>ACK</b>: "é seu". O Release, antes deles, foi o PC devolvendo o IP.'},
+ {txt:'E se o PC cair na VLAN errada?',faca:'No <b>SW-1A</b>: <code>enable</code>, <code>configure terminal</code>, <code>interface gi1/0/6</code>, <code>switchport access vlan 99</code>. Depois grave no PC-FAT02 e rode <code>ipconfig /renew</code> nele.',
+  ok:c=>c.dev==='FAT'&&/renew/.test(c.cmd)&&c.st.devs.SW1A.ifs['Gi1/0/6'].vlan===99&&capEm(c.st,'FAT')&&tem(c.st,f=>f.l4&&f.l4.dhcp&&f.l4.dhcp.t===1)&&!tem(c.st,f=>f.l4&&f.l4.dhcp&&f.l4.dhcp.t===2),
+  depois:'Pare e veja: só <b>Discover</b>, repetido, e nenhum Offer. Na VLAN 99 não existe servidor DHCP. É exatamente isso que deixa o PC com IP 169.254.'},
+ {txt:'Conserte.',faca:'No SW-1A (ainda na interface gi1/0/6): <code>switchport access vlan 10</code>. Depois, no PC-FAT02: <code>ipconfig /renew</code>.',
+  ok:c=>c.dev==='FAT'&&/renew/.test(c.cmd)&&c.st.devs.SW1A.ifs['Gi1/0/6'].vlan===10&&!!c.st.devs.FAT.lease,
+  depois:'<b>Resumo:</b> DHCP = DORA. Só Discover, sem Offer = ninguém responde naquela VLAN (VLAN errada, gateway/DHCP desligado no core ou trunk sem a VLAN).'}]},
+
+{id:'a-cap4',t:'DNS na captura',obj:'Ver perguntas e respostas de DNS e o encaminhamento para a internet.',dev:'LAUDO',passos:[
+ {txt:'Toda vez que você usa um nome, o PC manda uma pergunta <b>DNS</b> (UDP, porta 53) e espera a resposta.',
+  faca:'Grave no <b>PC-LAUDO03 · cabo do equipamento</b>. No PC-LAUDO03: <code>nslookup pacs.hvc.local</code>. Pare e filtre <code>dns</code>.',
+  ok:c=>c.dev==='CAP'&&c.cmd==='filtro'&&/^dns$/i.test(c.R||'')&&tem(c.st,f=>f.l4&&f.l4.dns&&f.l4.dns.resp&&f.l4.dns.a==='10.10.1.20'),
+  depois:'<b>Standard query … A pacs.hvc.local</b> é a pergunta. <b>Standard query response … A 10.10.1.20</b> é a resposta. O número 0x… (ID) liga a resposta à pergunta certa.'},
+ {txt:'Um nome que não existe.',faca:'Grave de novo, rode <code>nslookup naoexiste.hvc.local</code>, pare e filtre <code>dns</code>.',
+  ok:c=>c.dev==='CAP'&&c.cmd==='filtro'&&/^dns$/i.test(c.R||'')&&tem(c.st,f=>f.l4&&f.l4.dns&&f.l4.dns.rcode===3),
+  depois:'<b>No such name</b>: o servidor respondeu, mas o nome não existe. É bem diferente de não ter resposta nenhuma, que significa servidor fora do ar ou sem caminho. Ler essa diferença economiza horas de chamado.'},
+ {txt:'E os nomes da internet? O DNS do hospital pergunta para o 8.8.8.8 (Google).',faca:'Escolha o ponto <b>FGT-HVC port1 ↔ operadora (WAN, internet)</b>, grave, rode <code>nslookup google.com</code> no PC-LAUDO03, pare e filtre <code>dns</code>.',
+  ok:c=>c.dev==='CAP'&&c.cmd==='filtro'&&/^dns$/i.test(c.R||'')&&c.st.cap&&c.st.cap.ix===Cap().pontoDe(c.st,'WAN')&&tem(c.st,f=>f.l4&&f.l4.dns&&f.l4.dns.q==='google.com'&&f.ip.src==='200.160.2.2'),
+  depois:'Na saída para a internet, a pergunta não é do PC: é do <b>SRV-DNS</b>, e com o IP <b>200.160.2.2</b>, o IP público do hospital (NAT do FortiGate). Você acabou de ver o encaminhamento de DNS e o NAT acontecendo no cabo. Fim das aulas de captura!'}]}
 ];
 const A={AULAS};
 if(typeof module!=='undefined'&&module.exports)module.exports=A;else raiz.Aulas=A;

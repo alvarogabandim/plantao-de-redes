@@ -150,7 +150,7 @@ function stpVlan(st,R,v,C){
 }
 
 function construirL2(st){
-  const D=st.devs,R={link:[],porta:{},po:{},adj:new Map(),seg:new Map(),stormSeg:new Set(),stormVlan:new Set(),stp:{},sviUp:{},epLink:{},logicas:[],lp:linkPorta(st)};
+  const D=st.devs,R={giEdges:{},link:[],porta:{},po:{},adj:new Map(),seg:new Map(),stormSeg:new Set(),stormVlan:new Set(),stp:{},sviUp:{},epLink:{},logicas:[],lp:linkPorta(st)};
   const ps=(dev,p,v)=>{R.porta[dev+'|'+p]=v};
   const sws=Object.values(D).filter(ehSw);
   for(const d of sws)for(const[n,p]of Object.entries(d.ifs))ps(d.id,n,p.shut?'disabled':p.errdis?'err-disabled':'notconnect');
@@ -202,7 +202,7 @@ function construirL2(st){
       if(!res.fwd[i]){R.logicas[c.gi].links.forEach(ix=>R.link[ix].blk.add(v));return}
       fwdE.push({n1:a,n2:b,gi:c.gi,vlan:v});const ra=f(a),rb=f(b);if(ra===rb){stormNos.add(a);R.stormVlan.add(v)}else uf.set(ra,rb)})}
   R.logicas.forEach(g=>{if(g.pvidInc)g.links.forEach(ix=>{R.link[ix].blk.add(g.pvidInc[0])})});
-  const add=e=>{for(const[x,y]of[[e.n1,e.n2],[e.n2,e.n1]]){if(!R.adj.has(x))R.adj.set(x,[]);R.adj.get(x).push({to:y,gi:e.gi})}
+  const add=e=>{(R.giEdges[e.gi]=R.giEdges[e.gi]||[]).push([e.n1,e.n2]);for(const[x,y]of[[e.n1,e.n2],[e.n2,e.n1]]){if(!R.adj.has(x))R.adj.set(x,[]);R.adj.get(x).push({to:y,gi:e.gi})}
     R.logicas[e.gi].links.forEach(ix=>{const lk=R.link[ix];lk.uso=true;if(e.vlan!=null)lk.fwd.add(e.vlan)})};
   fixas.forEach(add);fwdE.forEach(add);
   let sg=0;for(const n of R.adj.keys()){if(R.seg.has(n))continue;const q=[n];R.seg.set(n,sg);while(q.length){const x=q.pop();for(const e of R.adj.get(x)||[])if(!R.seg.has(e.to)){R.seg.set(e.to,sg);q.push(e.to)}}sg++}
@@ -225,8 +225,15 @@ function concede(ep,s){const b=redeDe(s.pool.gw,s.pool.mask).split('.');b[3]=Str
 function dhcp(st,boot){for(const ep of Object.values(st.devs))if(ehEp(ep)&&ep.nic.dhcp){
   const agora=!!st.l2.epLink[ep.id];const flap=agora&&!ep.linkAntes;ep.linkAntes=agora;if(!agora||ep.liberado)continue;
   if(boot||flap||!ep.lease){const s=servidorDhcp(st,ep);if(s)concede(ep,s);else ep.lease=null}}}
-function renovar(st,ep){ep.liberado=false;const s=servidorDhcp(st,ep);if(s){concede(ep,s);st.own=donos(st);return true}st.own=donos(st);return false}
-function liberar(st,ep){ep.lease=null;ep.liberado=true;st.own=donos(st)}
+function renovar(st,ep,op){ep.liberado=false;const s=servidorDhcp(st,ep);
+  if(capOn(st,op)){const xid=((ep.host*2654435761)^(st.cap.seq*40503))>>>0,no='E:'+ep.id,bc={src:'0.0.0.0',dst:'255.255.255.255',ttl:128,proto:'udp'};
+    const cli=(t,x)=>({eth:'ip',src:ep.mac,dst:'ffff.ffff.ffff',ip:bc,l4:{udp:{sp:68,dp:67},dhcp:Object.assign({t,xid,mac:ep.mac,nome:ep.nome},x||{})}});
+    if(!s){for(let i=0;i<4;i++)capBcast(st,no,cli(1))}
+    else{const p=s.pool,b=redeDe(p.gw,p.mask).split('.');b[3]=String(ep.host);const yi=b.join('.'),sm=macDe(st,'CORE','Vlan'+s.v),ida=caminhoL2(st.l2,'S:CORE:'+s.v,no);
+      const srvr=t=>({eth:'ip',src:sm,dst:ep.mac,ip:{src:p.gw,dst:yi,ttl:255,proto:'udp'},l4:{udp:{sp:67,dp:68},dhcp:{t,xid,mac:ep.mac,yi,srv:p.gw,mask:p.mask,router:p.gw,dns:p.dns,lease:86400}}});
+      capBcast(st,no,cli(1));capUni(st,ida,srvr(2));capBcast(st,no,cli(3,{req:yi,srv:p.gw}));capUni(st,ida,srvr(5))}}if(s){concede(ep,s);st.own=donos(st);return true}st.own=donos(st);return false}
+function liberar(st,ep,op){if(capOn(st,op)&&ep.lease){const s=servidorDhcp(st,ep),c=ep.lease;if(s)capUni(st,caminhoL2(st.l2,'E:'+ep.id,'S:CORE:'+s.v),{eth:'ip',src:ep.mac,dst:macDe(st,'CORE','Vlan'+s.v),ip:{src:c.ip,dst:c.servidor,ttl:128,proto:'udp'},l4:{udp:{sp:68,dp:67},dhcp:{t:7,xid:(ep.host*977)>>>0,mac:ep.mac,ci:c.ip,srv:c.servidor}}})}
+  ep.lease=null;ep.liberado=true;st.own=donos(st)}
 
 function noDe(st,dev,ifn){const d=st.devs[dev];if(ehEp(d))return'E:'+dev;if(d.tipo==='l3'&&/^Vlan\d+$/.test(ifn))return'S:'+dev+':'+ifn.slice(4);return'R:'+dev+':'+ifn}
 function ipDe(st,dev,ifn){const d=st.devs[dev];if(ehEp(d))return cfgIP(st,d).ip;if(/^Vlan/.test(ifn)){const s=d.svis[+ifn.slice(4)];return s&&s.ip}const i=d.ifs[ifn];return i&&i.ip}
@@ -307,9 +314,12 @@ function viajar(st,orig,pk,ctx){
       if(d.tipo==='l3'){const acl=aclIf(d,egIf,'out');if(acl&&!aclPermite(d,acl,pk,ctx))return fim(false,{motivo:'acl',acl,dir:'out',ifn:egIf})}
     }
     const o=st.own.get(nh);const sgE=L.seg.get(egNo);
-    if(!o||o.dev===dev||sgE===undefined||L.seg.get(o.no)!==sgE)return fim(false,{motivo:'arp',nh,egIf});
+    if(!o||o.dev===dev||sgE===undefined||L.seg.get(o.no)!==sgE){if(capOn(st,ctx)&&sgE!==undefined)capBcast(st,egNo,arpPergunta(st,dev,egIf,nh));return fim(false,{motivo:'arp',nh,egIf})}
     if(L.stormSeg.has(sgE))return fim(false,{motivo:'tempestade',nh,egIf});
     const p=caminhoL2(L,egNo,o.no);if(!p)return fim(false,{motivo:'arp',nh,egIf});
+    if(ctx.registrar){const ac=arpCache(st),k=dev+'|'+nh;const om=macDe(st,o.dev,o.ifn);
+      if(!ac[k]){if(capOn(st,ctx)){const q=arpPergunta(st,dev,egIf,nh);capBcast(st,egNo,q);capUni(st,caminhoL2(L,o.no,egNo),{eth:'arp',src:om,dst:q.src,arp:{op:2,sha:om,spa:nh,tha:q.src,tpa:q.arp.spa}})}ac[k]=1;ac[o.dev+'|'+ipDe(st,dev,egIf)]=1}
+      if(capOn(st,ctx))capUni(st,p,{eth:'ip',src:macDe(st,dev,egIf),dst:om,ip:{src:pk.src,dst:pk.dst,ttl:pk.ttl,proto:pk.proto},l4:pk.l4||null})}
     for(const gi of p.gis){gis.push(gi);if(L.logicas[gi].lossy)lossy=true}
     for(let k=1;k<p.nos.length;k++){const dv=p.nos[k].split(':')[1];if(trilha[trilha.length-1]!==dv)trilha.push(dv)}
     hops.push({dev:o.dev,ip:ipDe(st,o.dev,o.ifn)});dev=o.dev;ing=o.ifn;
@@ -319,37 +329,56 @@ function viajar(st,orig,pk,ctx){
 function ipOrigem(st,dev,dst){const d=st.devs[dev];if(ehEp(d)){const c=cfgIP(st,d);return c.up?c.ip:null}if(d.tipo==='net')return d.ifs.wan.ip;const r=lpm(rotas(st,dev),dst);return r?ipDe(st,dev,r.ifn):null}
 function ttlIni(d,ip){if(d.tipo==='net'&&d.hosts[ip])return 120;if(d.tipo==='pc'||d.tipo==='srv')return 128;if(d.tipo==='med')return 64;return 255}
 
+/* ---------- captura de quadros: só tráfego disparado pelo usuário e só com a captura gravando ---------- */
+function macDe(st,dev,ifn){const d=st.devs[dev];if(ehEp(d))return d.mac;if(/^Vlan/.test(ifn||''))return'00a1.c0de.00'+(+ifn.slice(4)).toString(16).padStart(2,'0');if(d.tipo==='l3')return'00a1.c0de.0101';if(d.tipo==='fw')return ifn==='port1'?'0009.0f09.0001':'0009.0f09.0002';if(d.tipo==='net')return'e8b7.4801.0001';return d.mac}
+const capOn=(st,ctx)=>!!(ctx&&ctx.registrar&&st.cap&&st.cap.ativo);
+function capRec(st,base,gi,par){const cap=st.cap,L=st.l2;const lg=L.logicas[gi];if(!lg||!lg.links.includes(cap.ix)||cap.frames.length>=3000)return;
+  let vlan=null;const[a,b]=par;if(a.startsWith('S:')&&b.startsWith('S:')){const[,dv,v]=a.split(':');const lado=lg.a.dev===dv?lg.a:lg.b;const p=st.devs[dv].ifs[lado.p];if(p&&p.mode==='trunk'&&+v!==p.native)vlan=+v}
+  const fr=JSON.parse(JSON.stringify(base));fr.t=st.relogio+(cap.seq++)*0.00037;fr.vlan=vlan;cap.frames.push(fr)}
+function capUni(st,path,base){if(!path)return;path.gis.forEach((gi,k)=>capRec(st,base,gi,[path.nos[k],path.nos[k+1]]))}
+function capBcast(st,deNo,base){const L=st.l2;const sg=L.seg.get(deNo);if(sg===undefined||L.stormSeg.has(sg))return;
+  for(const gi of Object.keys(L.giEdges)){const par=L.giEdges[gi].find(([x])=>L.seg.get(x)===sg);if(par)capRec(st,base,+gi,par)}}
+function arpCache(st){if(st.arpVer!==st.ver){st.arp={};st.arpVer=st.ver}return st.arp}
+function arpPergunta(st,dev,egIf,nh){const sm=macDe(st,dev,egIf);return{eth:'arp',src:sm,dst:'ffff.ffff.ffff',arp:{op:1,sha:sm,spa:ipDe(st,dev,egIf),tha:'0000.0000.0000',tpa:nh}}}
+let XID=0x3a17;const novoId=()=>(XID=(XID*1103+12345)&0xffff);
+
 /* resolve nome → IP usando o DNS configurado no equipamento (pacote vai e volta de verdade) */
 function resolver(st,de,nome,op){op=op||{};nome=String(nome).toLowerCase().replace(/\.$/,'');
   if(ehIP(nome))return{ok:true,ip:nome};
   const d=st.devs[de];const srv=op.servidor||(ehEp(d)?cfgIP(st,d).dns:d.tipo==='fw'?d.dns:null);
   if(!srv)return{ok:false,motivo:'semdns'};
   const nomeSrv=srv==='10.10.1.10'?'dns.hvc.local':srv==='8.8.8.8'?'dns.google':srv==='127.0.0.1'?'localhost':'UnKnown';
-  const ctx={nat:[],registrar:!!op.registrar,contar:!!op.registrar};let srvDev;
+  const reg=!!op.registrar;const ctx={nat:[],registrar:reg,contar:reg};const id=novoId(),sp=49152+(id%16000);let srvDev,ida;
   if(srv==='127.0.0.1')srvDev=de;else{const src=ipOrigem(st,de,srv);if(!src)return{ok:false,motivo:'timeout',srv,nomeSrv};
-    const ida=viajar(st,de,{src,dst:srv,ttl:128,rep:false,proto:'udp',porta:53},ctx);if(!ida.ok)return{ok:false,motivo:ida.motivo==='recusado'?'recusado':'timeout',srv,nomeSrv,ida};
-    srvDev=ida.entregue;const volta=viajar(st,srvDev,{src:srv,dst:ida.pk.src,ttl:128,rep:true,proto:'udp'},ctx);if(!volta.ok)return{ok:false,motivo:'timeout',srv,nomeSrv}}
-  const S=st.devs[srvDev];const base={srv,nomeSrv};
-  if(S.zona){if(S.zona[nome])return Object.assign({ok:true,ip:S.zona[nome]},base);if(nome.endsWith('.hvc.local'))return Object.assign({ok:false,motivo:'nx'},base);
-    const fsrc=cfgIP(st,S).ip;const c2={nat:[]};const f=viajar(st,srvDev,{src:fsrc,dst:S.encaminhador,ttl:128,rep:false,proto:'udp',porta:53},c2);
-    if(!f.ok||!viajar(st,f.entregue,{src:S.encaminhador,dst:f.pk.src,ttl:128,rep:true,proto:'udp'},c2).ok)return Object.assign({ok:false,motivo:'servfail'},base);
-    if(EXTERNOS[nome])return Object.assign({ok:true,ip:EXTERNOS[nome],naoAut:true},base);return Object.assign({ok:false,motivo:'nx'},base)}
-  if(S.tipo==='net'){if(EXTERNOS[nome])return Object.assign({ok:true,ip:EXTERNOS[nome],naoAut:true},base);return Object.assign({ok:false,motivo:'nx'},base)}
-  return Object.assign({ok:false,motivo:'timeout'},base)}
+    ida=viajar(st,de,{src,dst:srv,ttl:ttlIni(d),rep:false,proto:'udp',porta:53,l4:{udp:{sp,dp:53},dns:{id,q:nome,resp:false}}},ctx);
+    if(!ida.ok)return{ok:false,motivo:ida.motivo==='recusado'?'recusado':'timeout',srv,nomeSrv,ida};srvDev=ida.entregue}
+  const S=st.devs[srvDev];const base={srv,nomeSrv};let res;
+  if(S.zona){if(S.zona[nome])res={ok:true,ip:S.zona[nome]};else if(nome.endsWith('.hvc.local'))res={ok:false,motivo:'nx'};
+    else{const fsrc=cfgIP(st,S).ip;const c2={nat:[],registrar:reg};const fid=novoId(),fsp=53000+(fid%9000),fa=EXTERNOS[nome]||null;
+      const f=viajar(st,srvDev,{src:fsrc,dst:S.encaminhador,ttl:128,rep:false,proto:'udp',porta:53,l4:{udp:{sp:fsp,dp:53},dns:{id:fid,q:nome,resp:false}}},c2);
+      if(!f.ok||!viajar(st,f.entregue,{src:S.encaminhador,dst:f.pk.src,ttl:120,rep:true,proto:'udp',l4:{udp:{sp:53,dp:fsp},dns:{id:fid,q:nome,resp:true,rcode:fa?0:3,a:fa}}},c2).ok)res={ok:false,motivo:'servfail'};
+      else res=fa?{ok:true,ip:fa,naoAut:true}:{ok:false,motivo:'nx'}}}
+  else if(S.tipo==='net')res=EXTERNOS[nome]?{ok:true,ip:EXTERNOS[nome],naoAut:true}:{ok:false,motivo:'nx'};
+  else return Object.assign({ok:false,motivo:'timeout'},base);
+  if(ida){const rc=res.ok?0:res.motivo==='servfail'?2:3;
+    const volta=viajar(st,srvDev,{src:srv,dst:ida.pk.src,ttl:ttlIni(S,srv),rep:true,proto:'udp',l4:{udp:{sp:53,dp:sp},dns:{id,q:nome,resp:true,rcode:rc,a:res.ok?res.ip:null}}},ctx);
+    if(!volta.ok)return{ok:false,motivo:'timeout',srv,nomeSrv}}
+  return Object.assign(res,base)}
 
 function ping(st,de,alvo,op){op=op||{};const d=st.devs[de];const r={de,alvo,ip:null,nome:null};
   if(ehEp(d)&&!cfgIP(st,d).up)return Object.assign(r,{tipo:'midia'});
   if(!ehIP(alvo)){const q=resolver(st,de,alvo,op);if(!q.ok)return Object.assign(r,{tipo:'nome',dns:q});r.ip=q.ip;r.nome=String(alvo).toLowerCase()}else r.ip=alvo;
   const src=ipOrigem(st,de,r.ip);if(!src)return Object.assign(r,{tipo:'semrota_local'});r.src=src;
-  const ctx={nat:[],registrar:!!op.registrar,contar:!!op.registrar};
-  const ida=viajar(st,de,{src,dst:r.ip,ttl:ttlIni(d),rep:false,proto:'icmp'},ctx);r.ida=ida;r.trilha=ida.trilha;
+  const ctx={nat:[],registrar:!!op.registrar,contar:!!op.registrar};const seq=op.seq||1;
+  const ida=viajar(st,de,{src,dst:r.ip,ttl:ttlIni(d),rep:false,proto:'icmp',l4:{icmp:{t:8,code:0,id:1,seq}}},ctx);r.ida=ida;r.trilha=ida.trilha;
   if(!ida.ok){
     if(ehEp(d)&&ida.dev===de&&(ida.motivo==='arp'||ida.motivo==='semgw'))return Object.assign(r,{tipo:'inac',deIp:src});
-    if(ida.motivo==='semrota'&&ida.dev!==de){const ip=ipDe(st,ida.dev,ida.ing);const v=viajar(st,ida.dev,{src:ip,dst:ida.pk.src,ttl:255,rep:true,proto:'icmp'},ctx);if(v.ok)return Object.assign(r,{tipo:'rede_inac',deIp:ip})}
+    if(ida.motivo==='semrota'&&ida.dev!==de){const ip=ipDe(st,ida.dev,ida.ing);const v=viajar(st,ida.dev,{src:ip,dst:ida.pk.src,ttl:255,rep:true,proto:'icmp',l4:{icmp:{t:3,code:0,orig:{src:ida.pk.src,dst:ida.pk.dst,ttl:ida.pk.ttl,id:1,seq}}}},ctx);if(v.ok)return Object.assign(r,{tipo:'rede_inac',deIp:ip})}
     if(ida.motivo==='semrota'&&ida.dev===de)return Object.assign(r,{tipo:'semrota_local'});
     return Object.assign(r,{tipo:'timeout'})}
+  if(op.perde)return Object.assign(r,{tipo:'timeout'});
   const dd=st.devs[ida.entregue];
-  const volta=viajar(st,ida.entregue,{src:r.ip,dst:ida.pk.src,ttl:ttlIni(dd,r.ip),rep:true,proto:'icmp'},ctx);r.volta=volta;
+  const volta=viajar(st,ida.entregue,{src:r.ip,dst:ida.pk.src,ttl:ttlIni(dd,r.ip),rep:true,proto:'icmp',l4:{icmp:{t:0,code:0,id:1,seq}}},ctx);r.volta=volta;
   if(!volta.ok)return Object.assign(r,{tipo:'timeout'});
   r.ttl=volta.pk.ttl;r.lossy=ida.lossy||volta.lossy;
   const inet=st.devs[ida.entregue].tipo==='net';r.ms=Math.max(1,Math.round((ida.hops.length+volta.hops.length)/2))+(inet?11:0)+(r.lossy?40:0);
@@ -359,10 +388,17 @@ function conectar(st,de,alvo,porta,op){op=op||{};const d=st.devs[de];const r={de
   if(ehEp(d)&&!cfgIP(st,d).up)return Object.assign(r,{ok:false,motivo:'midia'});
   if(!ehIP(alvo)){const q=resolver(st,de,alvo,op);if(!q.ok)return Object.assign(r,{ok:false,motivo:'nome'});r.ip=q.ip}else r.ip=alvo;
   const src=ipOrigem(st,de,r.ip);if(!src)return Object.assign(r,{ok:false,motivo:'semrota'});r.src=src;
-  const ctx={nat:[],registrar:!!op.registrar,contar:!!op.registrar};
-  const ida=viajar(st,de,{src,dst:r.ip,ttl:128,rep:false,proto:'tcp',porta},ctx);r.trilha=ida.trilha;
-  if(!ida.ok)return Object.assign(r,{ok:false,motivo:ida.motivo,ida});
-  const v=viajar(st,ida.entregue,{src:r.ip,dst:ida.pk.src,ttl:128,rep:true,proto:'tcp'},ctx);
+  const reg=!!op.registrar;const ctx={nat:[],registrar:reg,contar:reg},c2={nat:ctx.nat,registrar:reg};
+  const id=novoId(),sp=49152+(id%16000),isn=(id*2654435761)>>>0,isn2=((id+porta)*40503*7919)>>>0;
+  const syn=retr=>({src,dst:r.ip,ttl:ttlIni(d),rep:false,proto:'tcp',porta,l4:{tcp:{sp,dp:porta,flags:'S',seq:isn,ack:0,retr}}});
+  const ida=viajar(st,de,syn(false),ctx);r.trilha=ida.trilha;
+  if(!ida.ok){
+    if(ida.motivo==='recusado'&&reg)viajar(st,ida.entregue,{src:r.ip,dst:ida.pk.src,ttl:128,rep:true,proto:'tcp',l4:{tcp:{sp:porta,dp:sp,flags:'RA',seq:0,ack:isn+1}}},c2);
+    else if(capOn(st,ctx)){viajar(st,de,syn(true),c2);viajar(st,de,syn(true),c2)}
+    return Object.assign(r,{ok:false,motivo:ida.motivo,ida})}
+  if(ida.lossy&&capOn(st,ctx))viajar(st,de,syn(true),c2);
+  const v=viajar(st,ida.entregue,{src:r.ip,dst:ida.pk.src,ttl:128,rep:true,proto:'tcp',l4:{tcp:{sp:porta,dp:sp,flags:'SA',seq:isn2,ack:(isn+1)>>>0}}},ctx);
+  if(v.ok&&capOn(st,ctx))viajar(st,de,{src,dst:r.ip,ttl:ttlIni(d),rep:false,proto:'tcp',porta,l4:{tcp:{sp,dp:porta,flags:'A',seq:(isn+1)>>>0,ack:(isn2+1)>>>0}}},c2);
   return Object.assign(r,{ok:v.ok,motivo:v.ok?null:'timeout',lossy:ida.lossy||v.lossy})}
 
 function traceroute(st,de,alvo,op){op=op||{};const d=st.devs[de];const r={de,alvo,linhas:[]};
@@ -370,10 +406,11 @@ function traceroute(st,de,alvo,op){op=op||{};const d=st.devs[de];const r={de,alv
   if(!ehIP(alvo)){const q=resolver(st,de,alvo,op);if(!q.ok)return Object.assign(r,{tipo:'nome',dns:q});r.ip=q.ip;r.nome=String(alvo).toLowerCase()}else r.ip=alvo;
   const src=ipOrigem(st,de,r.ip);if(!src)return Object.assign(r,{tipo:'semrota_local'});
   let vazios=0;
-  for(let t=1;t<=30;t++){const ctx={nat:[]};const x=viajar(st,de,{src,dst:r.ip,ttl:t,rep:false,proto:'icmp'},ctx);let h=null,fim=false;
-    if(x.ok){const v=viajar(st,x.entregue,{src:r.ip,dst:x.pk.src,ttl:255,rep:true,proto:'icmp'},ctx);if(v.ok){h={ip:r.ip};fim=true}}
-    else if(x.motivo==='ttl'){const v=viajar(st,x.dev,{src:x.ipResp,dst:x.pk.src,ttl:255,rep:true,proto:'icmp'},ctx);if(v.ok)h={ip:x.ipResp}}
-    else if(x.motivo==='semrota'&&x.dev!==de){const ip=ipDe(st,x.dev,x.ing);const v=viajar(st,x.dev,{src:ip,dst:x.pk.src,ttl:255,rep:true,proto:'icmp'},ctx);if(v.ok){h={ip,flag:'N'};fim=true}}
+  for(let t=1;t<=30;t++){const ctx={nat:[],registrar:!!op.registrar};const x=viajar(st,de,{src,dst:r.ip,ttl:t,rep:false,proto:'icmp',l4:{icmp:{t:8,code:0,id:1,seq:t}}},ctx);let h=null,fim=false;
+    const orig={src:x.pk.src,dst:x.pk.dst,ttl:1,id:1,seq:t};
+    if(x.ok){const v=viajar(st,x.entregue,{src:r.ip,dst:x.pk.src,ttl:255,rep:true,proto:'icmp',l4:{icmp:{t:0,code:0,id:1,seq:t}}},ctx);if(v.ok){h={ip:r.ip};fim=true}}
+    else if(x.motivo==='ttl'){const v=viajar(st,x.dev,{src:x.ipResp,dst:x.pk.src,ttl:255,rep:true,proto:'icmp',l4:{icmp:{t:11,code:0,orig}}},ctx);if(v.ok)h={ip:x.ipResp}}
+    else if(x.motivo==='semrota'&&x.dev!==de){const ip=ipDe(st,x.dev,x.ing);const v=viajar(st,x.dev,{src:ip,dst:x.pk.src,ttl:255,rep:true,proto:'icmp',l4:{icmp:{t:3,code:0,orig}}},ctx);if(v.ok){h={ip,flag:'N'};fim=true}}
     else if((x.motivo==='arp'||x.motivo==='semgw')&&x.dev===de){h={ip:src,flag:'H'};fim=true}
     if(h){h.ms=t;r.linhas.push(h);vazios=0}else{r.linhas.push(null);vazios++}
     if(fim)break;if(vazios>=3){r.cortado=true;break}}
@@ -613,7 +650,7 @@ function novoChamado(n,seed,op){op=op||{};
 
 const Motor={ip2n,n2ip,ehIP,mascaraOk,lenDe,maskDe,naRede,redeDe,privado,casaCuringa,listaVlans,vlansTxt,rng,nomeLongo,ordemPorta,normIf,
   ehEp,ehSw,porta,criarRede,atualizar,construirL2,caminhoL2,cfgIP,renovar,liberar,donos,rotas,lpm,ipDe,noDe,ifUp,ipOrigem,
-  ping,traceroute,resolver,conectar,viajar,matriz,validar,rodarTeste,descTeste,COND,DEFEITOS,novoChamado,log,
+  ping,traceroute,resolver,conectar,viajar,macDe,arpCache,matriz,validar,rodarTeste,descTeste,COND,DEFEITOS,novoChamado,log,
   PORTA_EP,VLAN_EP,GW_VLAN,NOME_VLAN,EXTERNOS,custoPorta,pid,stNome:st_nome};
 if(typeof module!=='undefined'&&module.exports)module.exports=Motor;else raiz.Motor=Motor;
 })(typeof window!=='undefined'?window:globalThis);

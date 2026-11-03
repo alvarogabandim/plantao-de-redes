@@ -33,7 +33,8 @@ function fmtTs(t){const d=new Date(BASE+Math.floor(t*1000));const z=n=>String(n)
 function macWin(m){return m.replace(/\./g,'').match(/../g).join('-').toUpperCase()}
 function macDash(m){return m.replace(/\./g,'').match(/../g).join('-').toLowerCase()}
 function sviMac(v){return'00a1.c0de.00'+(+v).toString(16).padStart(2,'0')}
-function macDe(st,o){const d=st.devs[o.dev];if(M.ehEp(d))return d.mac;if(/^Vlan/.test(o.ifn))return sviMac(o.ifn.slice(4));if(d.tipo==='l3')return'00a1.c0de.0101';if(d.tipo==='fw')return o.ifn==='port1'?'0009.0f09.0001':'0009.0f09.0002';return'e8b7.4801.0001'}
+function macDe(st,o){return M.macDe(st,o.dev,o.ifn)}
+function maisPings(st,id,r,n,perdeImpar){if(!(st.cap&&st.cap.ativo)||!r.ip||r.tipo==='nome'||r.tipo==='midia')return;for(let i=2;i<=n;i++)M.ping(st,id,r.ip,{registrar:true,seq:i,perde:!!(r.lossy&&i%2===0)})}
 const curto=n=>n.startsWith('Gi')?'Gig '+n.slice(2):n;
 function portasOrd(d){return Object.keys(d.ifs).sort((a,b)=>M.ordemPorta(a)-M.ordemPorta(b))}
 function nomeEp(st,id){return st.devs[id].nome}
@@ -77,7 +78,7 @@ function atalhos(st,id){const d=st.devs[id];if(d.tipo==='med')return ATALHOS.med
 
 /* ================= Windows ================= */
 const AJ_WIN=['Comandos deste PC (Windows):','  ipconfig  |  ipconfig /all  |  ipconfig /renew  |  ipconfig /release  |  ipconfig /flushdns',
-  '  ping <ip ou nome> [-n N]       tracert <ip ou nome>        nslookup <nome> [servidor]','  arp -a                         tnc <ip ou nome> -port <porta>   (Test-NetConnection)',
+  '  ping <ip ou nome> [-n N]       tracert <ip ou nome>        nslookup <nome> [servidor]','  arp -a  |  arp -d               tnc <ip ou nome> -port <porta>   (Test-NetConnection)',
   '  netsh interface ip set address "Ethernet" dhcp','  netsh interface ip set address "Ethernet" static <ip> <máscara> <gateway>',
   '  netsh interface ip set dns "Ethernet" dhcp      |  netsh interface ip set dns "Ethernet" static <ip>','  hostname  |  cls'].join(nl);
 function ipconfigTxt(st,d,all){const c=M.cfgIP(st,d);const L=['','Configuração de IP do Windows',''];
@@ -119,10 +120,10 @@ function win(st,id,s,R){const d=st.devs[id];const o=t=>R.linhas.push(['out',t]),
     if(c.apipa)nt('» 169.254.x.x = APIPA: o Windows pediu IP ao DHCP e ninguém respondeu.');if(!c.up)nt('» Mídia desconectada = sem link físico (cabo, porta do switch desligada ou bloqueada).');return}
   if(low==='ipconfig /renew'){if(d.tipo==='srv'||!d.nic.dhcp)return o('\nConfiguração de IP do Windows\n\nA operação falhou porque nenhum adaptador está no estado permissível para esta operação.'),nt('» O IP deste equipamento é fixo (estático): o DHCP não age aqui.');
     if(!M.cfgIP(st,d).up)return o('\nConfiguração de IP do Windows\n\nNão é possível executar nenhuma operação em Ethernet enquanto a mídia estiver desconectada.');
-    const ok=M.renovar(st,d);R.mudou=true;if(!ok)return o('\nConfiguração de IP do Windows\n\nOcorreu um erro ao renovar a interface Ethernet: Não foi possível contatar o servidor DHCP. Tempo limite da solicitação esgotado.');return o(ipconfigTxt(st,d,false))}
-  if(low==='ipconfig /release'){if(!d.nic.dhcp)return o('\nConfiguração de IP do Windows\n\nA operação falhou porque nenhum adaptador está no estado permissível para esta operação.');M.liberar(st,d);R.mudou=true;return o(ipconfigTxt(st,d,false).replace(/Endereço IPv4.*\n/,''))}
+    const ok=M.renovar(st,d,{registrar:true});R.mudou=true;if(!ok)return o('\nConfiguração de IP do Windows\n\nOcorreu um erro ao renovar a interface Ethernet: Não foi possível contatar o servidor DHCP. Tempo limite da solicitação esgotado.');return o(ipconfigTxt(st,d,false))}
+  if(low==='ipconfig /release'){if(!d.nic.dhcp)return o('\nConfiguração de IP do Windows\n\nA operação falhou porque nenhum adaptador está no estado permissível para esta operação.');M.liberar(st,d,{registrar:true});R.mudou=true;return o(ipconfigTxt(st,d,false).replace(/Endereço IPv4.*\n/,''))}
   if(low==='ipconfig /flushdns')return o('\nConfiguração de IP do Windows\n\nCache do DNS Resolver liberado com êxito.');
-  if(m=s.match(/^ping\s+(?:-[nt]\s*(\d+)?\s+)?(\S+)(?:\s+-n\s+(\d+))?$/i)){const n=Math.min(10,+(m[1]||m[3]||4));const r=M.ping(st,id,m[2],{registrar:true});o(winPing(r,n));R.anim={trilha:r.trilha,ok:r.tipo==='ok'};
+  if(m=s.match(/^ping\s+(?:-[nt]\s*(\d+)?\s+)?(\S+)(?:\s+-n\s+(\d+))?$/i)){const n=Math.min(10,+(m[1]||m[3]||4));const r=M.ping(st,id,m[2],{registrar:true});maisPings(st,id,r,n);o(winPing(r,n));R.anim={trilha:r.trilha,ok:r.tipo==='ok'};
     if(r.tipo==='inac')nt('» Atenção: o Windows conta "Host de destino inacessível" como RECEBIDO (0% de perda), mas falhou. A resposta veio do próprio PC: ele não conseguiu entregar o pacote nem ao gateway.');
     if(r.tipo==='ok'&&r.lossy)nt('» Perda intermitente: o caminho existe, mas algum enlace está com erros. Olhe contadores de interface (CRC, colisões).');return}
   if(m=s.match(/^tracert\s+(?:-d\s+)?(\S+)$/i)){const r=M.traceroute(st,id,m[1],{registrar:true});o(winTrace(r));R.anim={trilha:r.trilha,ok:!!r.okFinal};if(r.cortado)nt('» O simulador parou após 3 saltos sem resposta. O último salto que respondeu é a pista: o problema está nele ou logo depois.');return}
@@ -134,6 +135,7 @@ function win(st,id,s,R){const d=st.devs[id];const o=t=>R.linhas.push(['out',t]),
     else if(q.motivo==='nx')L.push(`*** ${q.nomeSrv} não encontrou ${m[1]}: Non-existent domain`);
     else if(q.motivo==='servfail'){L.push(`*** ${q.nomeSrv} não encontrou ${m[1]}: Server failed`);}
     o(L.join(nl));if(q.motivo==='servfail')nt('» O DNS interno respondeu, mas não conseguiu consultar a internet (encaminhador 8.8.8.8). Problema de saída para a internet, não do DNS.');return}
+  if(/^arp\s+-d(\s+\*)?$/i.test(s)){const ac=M.arpCache(st);Object.keys(ac).filter(k=>k.startsWith(id+'|')).forEach(k=>delete ac[k]);return nt('» Memória ARP (tabela de MACs) apagada. No próximo envio o PC vai perguntar de novo "quem tem este IP?".')}
   if(/^arp\s+-a$/i.test(s)){const c=M.cfgIP(st,d);if(!c.up||!c.ip)return o('Nenhuma entrada ARP encontrada.');const L=['',`Interface: ${c.ip} --- 0xb`,'  Endereço IP           Endereço físico       Tipo'];
     const sg=st.l2.seg.get('E:'+id);const ips=[c.gw,c.dns].filter(Boolean).filter((x,i,a)=>a.indexOf(x)===i);
     for(const ip of ips){const ow=st.own.get(ip);if(ow&&M.naRede(ip,c.ip,c.mask)&&st.l2.seg.get(ow.no)===sg&&!st.l2.stormSeg.has(sg))L.push(`  ${pad(ip,22)}${pad(macDash(macDe(st,ow)),22)}dinâmico`)}
@@ -149,7 +151,7 @@ function win(st,id,s,R){const d=st.devs[id];const o=t=>R.linhas.push(['out',t]),
   if(m=s.match(/^netsh\s+int(?:erface)?\s+ip(?:v4)?\s+set\s+address\s+(?:name=)?("?)([^"]+?)\1\s+(?:source=)?(dhcp|static)(?:\s+(?:address=)?(\S+)\s+(?:mask=)?(\S+)(?:\s+(?:gateway=)?(\S+))?)?$/i)){
     if(m[2].toLowerCase()!=='ethernet')return o('O nome do objeto especificado não foi encontrado.'),nt('» O adaptador deste PC se chama "Ethernet".');
     const n=d.nic;
-    if(m[3].toLowerCase()==='dhcp'){if(d.tipo==='srv')return bad('» Servidor com IP fixo: não mude para DHCP.');if(!n.dhcp){if(n.dns)n.dnsManual=n.dns;n.dhcp=true;d.liberado=false;d.lease=null}M.atualizar(st);M.renovar(st,d);R.mudou=true;return o('Ok.')}
+    if(m[3].toLowerCase()==='dhcp'){if(d.tipo==='srv')return bad('» Servidor com IP fixo: não mude para DHCP.');if(!n.dhcp){if(n.dns)n.dnsManual=n.dns;n.dhcp=true;d.liberado=false;d.lease=null}M.atualizar(st);M.renovar(st,d,{registrar:true});R.mudou=true;return o('Ok.')}
     if(!m[4]||!M.ehIP(m[4])||!M.mascaraOk(m[5]||'')||(m[6]&&!M.ehIP(m[6])))return o('Uso: netsh interface ip set address "Ethernet" static <ip> <máscara> <gateway>'),nt('» Confira IP, máscara e gateway (formato 10.10.20.50 255.255.255.0 10.10.20.1).');
     Object.assign(n,{dhcp:false,ip:m[4],mask:m[5],gw:m[6]||null,dns:n.dnsManual||(d.lease&&d.lease.dns)||n.dns});d.lease=null;M.atualizar(st);R.mudou=true;return o('Ok.')}
   if(m=s.match(/^netsh\s+int(?:erface)?\s+ip(?:v4)?\s+set\s+dns(?:servers)?\s+(?:name=)?("?)([^"]+?)\1\s+(?:source=)?(dhcp|static)(?:\s+(?:address=)?(\S+))?(?:\s+\S+)?$/i)){
@@ -167,7 +169,7 @@ function tomo(st,id,s,R){const d=st.devs[id],n=d.nic;const o=t=>R.linhas.push(['
   if(/^rede\s+mostr/.test(low)){const c=M.cfgIP(st,d);return o([`Interface .......... eth0 (link: ${c.up?'ativo, 1000 Mb/s':'INATIVO'})`,'Modo ............... estático (DHCP não suportado pelo fabricante)',`Endereço IP ........ ${n.ip}`,`Máscara ............ ${n.mask}`,`Gateway ............ ${n.gw||'-'}`,`DNS ................ ${n.dns||'-'}`,'AE Title local ..... TOMO01','Destino DICOM ...... PACSHVC @ 10.10.1.20 porta 104'].join(nl))}
   if(m=low.match(/^rede\s+definir\s+ip\s+(\S+)\s+mascara\s+(\S+)\s+gateway\s+(\S+)(?:\s+dns\s+(\S+))?$/)){if(!M.ehIP(m[1])||!M.mascaraOk(m[2])||!M.ehIP(m[3]))return o('ERRO: endereço inválido.');Object.assign(n,{ip:m[1],mask:m[2],gw:m[3]});if(m[4])n.dns=m[4];M.atualizar(st);R.mudou=true;return o('Configuração aplicada. Interface eth0 reiniciada.')}
   if(m=low.match(/^rede\s+definir\s+(gateway|dns)\s+(\S+)$/)){if(!M.ehIP(m[2]))return o('ERRO: endereço inválido.');n[m[1]==='gateway'?'gw':'dns']=m[2];M.atualizar(st);R.mudou=true;return o('Configuração aplicada. Interface eth0 reiniciada.')}
-  if(m=low.match(/^ping\s+(\S+)$/)){const r=M.ping(st,id,m[1],{registrar:true});R.anim={trilha:r.trilha,ok:r.tipo==='ok'};
+  if(m=low.match(/^ping\s+(\S+)$/)){const r=M.ping(st,id,m[1],{registrar:true});maisPings(st,id,r,4);R.anim={trilha:r.trilha,ok:r.tipo==='ok'};
     if(r.tipo==='ok')return o(`PING ${r.ip}: 56 bytes\n`+[0,1,2,3].map(i=>r.lossy&&i%2?'(sem resposta)':`64 bytes de ${r.ip}: seq=${i} ttl=${r.ttl} tempo=${r.ms+(r.lossy?i*30:0)} ms`).join(nl)+`\n--- ${r.ip} ---\n4 enviados, ${r.lossy?2:4} recebidos`);
     if(r.tipo==='nome')return o('ping: nome desconhecido');return o(`PING ${r.ip||m[1]}: 56 bytes\n${r.tipo==='inac'?'De '+r.deIp+': destino inacessível\n'.repeat(4).trim():'(sem resposta)\n(sem resposta)\n(sem resposta)\n(sem resposta)'}\n--- ${r.ip||m[1]} ---\n4 enviados, 0 recebidos, 100% perda`)}
   if(/^dicom\s+eco/.test(low)){const r=M.conectar(st,id,'10.10.1.20',104,{registrar:true});R.anim={trilha:r.trilha||[],ok:r.ok};
@@ -206,7 +208,7 @@ function iosExec(st,id,s,R,viaDo){const d=st.devs[id],t=T(st,id);const toks=s.sp
   invalido(R,s)}
 function iosPing(st,id,alvo,R){const o=x=>R.linhas.push(['out',x]),nt=x=>R.linhas.push(['note',x]);const d=st.devs[id];
   if(!M.ehIP(alvo)){o(`Translating "${alvo}"...domain server (255.255.255.255)\n% Unrecognized host or address, or protocol not running.`);return nt('» Este equipamento não tem DNS configurado: use o IP.')}
-  const r=M.ping(st,id,alvo,{registrar:true});R.anim={trilha:r.trilha||[id],ok:r.tipo==='ok'};
+  const r=M.ping(st,id,alvo,{registrar:true});maisPings(st,id,r,5);R.anim={trilha:r.trilha||[id],ok:r.tipo==='ok'};
   let sim='.....',n=0;if(r.tipo==='ok'){sim=r.lossy?'!.!.!':'!!!!!';n=r.lossy?3:5}else if(r.tipo==='rede_inac')sim='U.U.U';
   o(`Type escape sequence to abort.\nSending 5, 100-byte ICMP Echos to ${alvo}, timeout is 2 seconds:\n${sim}\nSuccess rate is ${n*20} percent (${n}/5)${n?`, round-trip min/avg/max = ${r.ms}/${r.ms+(r.lossy?30:0)}/${r.ms+(r.lossy?80:1)} ms`:''}`);
   if(d.tipo==='sw')nt('» O '+d.nome+' é só camada 2 neste laboratório (sem IP de gerência). Teste a partir do CORE-01 ou de um PC.');
@@ -464,7 +466,7 @@ function fos(st,id,s,R){const d=st.devs[id],t=T(st,id);const o=x=>R.linhas.push(
     if(/^get\s+router\s+info\s+routing-table(\s+all|\s+details)?$/.test(low)){o(fosRotas(st));if(!st.devs.FGT.rotas.some(r=>r.id===2))nt('» Repare: nada aqui cobre as VLANs internas 10.10.10.0, 10.10.20.0, 10.10.30.0... Só o /30 do link com o core.');return}
     if(/^get\s+system\s+interface(\s+physical)?$/.test(low))return o(['== [onboard]',...Object.entries(d.ifs).flatMap(([n,i])=>[`        ==[${n}]`,'                mode: static',`                ip: ${i.ip} ${i.mask}`,`                status: ${i.status==='up'&&M.ifUp(st,'FGT',n)?'up':'down'}`,'                speed: 1000Mbps (Duplex: full)'])].join(nl));
     if(/^get\s+system\s+status$/.test(low))return o('Version: FortiGate-100F v7.4.4,build2662,240514 (GA.F)\nHostname: FGT-HVC\nOperation Mode: NAT\nCurrent virtual domain: root');
-    if(m=low.match(/^exec(?:ute)?\s+ping\s+(\S+)$/)){const r=M.ping(st,id,m[1],{registrar:true});R.anim={trilha:r.trilha||[id],ok:r.tipo==='ok'};
+    if(m=low.match(/^exec(?:ute)?\s+ping\s+(\S+)$/)){const r=M.ping(st,id,m[1],{registrar:true});maisPings(st,id,r,5);R.anim={trilha:r.trilha||[id],ok:r.tipo==='ok'};
       if(r.tipo==='nome')return o(`Unable to resolve hostname.`);const ip=r.ip||m[1];const L=[`PING ${ip} (${ip}): 56 data bytes`];let rec=0;
       if(r.tipo==='ok')for(let i=0;i<5;i++){if(r.lossy&&i%2)continue;rec++;L.push(`64 bytes from ${ip}: icmp_seq=${i} ttl=${r.ttl} time=${(r.ms+0.3*i).toFixed(1)} ms`)}
       L.push('',`--- ${ip} ping statistics ---`,`5 packets transmitted, ${rec} packets received, ${100-rec*20}% packet loss`);if(rec)L.push(`round-trip min/avg/max = ${r.ms}.1/${r.ms}.4/${r.ms+1}.0 ms`);o(L.join(nl));
