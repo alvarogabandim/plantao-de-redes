@@ -18,7 +18,7 @@ Nada é roteirizado. Existe uma rede de hospital funcionando e o gerador quebra 
   Windows (PCs e servidores) e o painel do tomógrafo. Comandos aceitam abreviação (`sh int st`, `conf t`).
 - **Mapa ao vivo**: links ficam vermelhos, bloqueados pelo STP, com perda ou em tempestade
   conforme o estado real; o pacote do ping anda pelo caminho calculado.
-- **Gerador de defeitos**: 16 tipos em 3 níveis (gateway, DNS, porta desligada, VLAN errada,
+- **Gerador de defeitos**: 25 tipos em 4 níveis (Júnior → Sênior) (gateway, DNS, porta desligada, VLAN errada,
   BPDU Guard, trunk sem a VLAN, VLAN apagada, SVI desligada, rota padrão, duplex mismatch,
   LACP on × active, loop com bpdufilter, ACL com curinga errada, política, NAT e rota de retorno
   do FortiGate). A partir do 8º chamado podem vir dois defeitos juntos.
@@ -44,4 +44,6 @@ node testes/teste-motor.js   # quebra cada defeito, corrige digitando os comando
    - ✅ Captura de pacotes: pontos de captura em qualquer cabo, ARP/DHCP/DNS/ICMP/TCP/STP/LACP gerados pelo motor, filtros no estilo Wireshark, detalhes por camada em português, bytes reais e exportação .pcap
    - ✅ 4 aulas de captura no Trainee (primeira captura, ARP, DHCP, DNS)
    - ✅ Botões de pular passo, aula e chamado
+   - ✅ Nível Sênior + 10 casos novos: IP duplicado, serviço parado, escopo DHCP errado (Júnior); raiz do STP errada, ordem da ACL, direção da ACL, DHCP pirata (Pleno); rota mais específica no FortiGate, DHCP snooping, incidente múltiplo com 3 defeitos (Sênior)
+   - Próximas: tcpdump com espelhamento de porta; gestão de mudança com backup e rollback
 3. Modo Construir + diagnóstico de pontos fracos + entrevista simulada

@@ -97,6 +97,7 @@ function criarRede(){
   D.DNS.zona={'pacs.hvc.local':'10.10.1.20','srv-pacs.hvc.local':'10.10.1.20','dns.hvc.local':'10.10.1.10','srv-dns.hvc.local':'10.10.1.10','core-01.hvc.local':'10.10.0.2'};
   D.DNS.encaminhador='8.8.8.8';
   D.PACS=novoEp('PACS','SRV-PACS','srv','Windows Server 2022 · PACS','0050.56aa.0120',{ip:'10.10.1.20',mask:'255.255.255.0',gw:'10.10.1.1',dns:'10.10.1.10'},20,{tcp:[104,443,3389]});
+  D.PACS.svcNomes={'PACS-DICOM':['tcp',104],'PACS-Web':['tcp',443],'TermService':['tcp',3389]};D.DNS.svcNomes={'DNS':['udp',53],'DNS-TCP':['tcp',53],'TermService':['tcp',3389]};
 
   const L=(a,ai,b,bi,x)=>st.links.push(Object.assign({a:[a,ai],b:[b,bi]},x||{}));
   L('NET','wan','FGT','port1');L('FGT','port2','CORE','Gi1/0/1');
@@ -219,19 +220,33 @@ function cfgIP(st,d){const n=d.nic;const up=st.l2?!!st.l2.epLink[d.id]:true;
   if(!n.dhcp)return{ip:n.ip,mask:n.mask,gw:n.gw,dns:n.dns,up,dhcp:false};
   if(d.lease)return{ip:d.lease.ip,mask:d.lease.mask,gw:d.lease.gw,dns:n.dnsManual||d.lease.dns,up,dhcp:true,lease:d.lease};
   return{ip:'169.254.'+(80+d.host%100)+'.'+((d.host*3)%250+2),mask:'255.255.0.0',gw:null,dns:n.dnsManual,up,dhcp:true,apipa:true}}
-function servidorDhcp(st,ep){const L=st.l2;const sg=L.seg.get('E:'+ep.id);if(sg===undefined||L.stormSeg.has(sg))return null;const C=st.devs.CORE;
-  for(const v in C.dhcp)if(L.sviUp[v]&&L.seg.get('S:CORE:'+v)===sg)return{v:+v,pool:C.dhcp[v]};return null}
-function concede(ep,s){const b=redeDe(s.pool.gw,s.pool.mask).split('.');b[3]=String(ep.host);ep.lease={ip:b.join('.'),mask:s.pool.mask,gw:s.pool.gw,dns:s.pool.dns,vlan:s.v,servidor:s.pool.gw}}
+function portaDe(L,gi,dev){const lg=L.logicas[gi];return lg.a.dev===dev?lg.a.p:lg.b.p}
+function confiavel(d,p){const c=d.ifs[p];if(!c)return false;if(c.trust)return true;if(p.startsWith('Po'))return false;return!!(c.cg&&d.ifs['Po'+c.cg.n]&&d.ifs['Po'+c.cg.n].trust)}
+/* DHCP snooping: oferta só passa por porta confiável nos switches com snooping ligado na VLAN. Devolve até onde a oferta chega. */
+function bloqueioSnoop(st,path){const L=st.l2;if(!path)return null;for(let k=1;k<path.nos.length;k++){const[t,dv,v]=path.nos[k].split(':');if(t!=='S')continue;const d=st.devs[dv];
+  if(d.snoop&&d.snoop.on&&d.snoop.vlans.includes(+v)&&!confiavel(d,portaDe(L,path.gis[k-1],dv)))return{k,dev:dv,porta:portaDe(L,path.gis[k-1],dv)}}return null}
+function ofertasDhcp(st,ep){const L=st.l2;const sg=L.seg.get('E:'+ep.id);const out=[];if(sg===undefined||L.stormSeg.has(sg))return out;const no='E:'+ep.id;
+  for(const d of Object.values(st.devs))if(d.dhcpSrv&&L.seg.get('E:'+d.id)===sg){const path=caminhoL2(L,'E:'+d.id,no);out.push({v:null,pool:d.dhcpSrv,de:d.id,deNo:'E:'+d.id,path,bloq:bloqueioSnoop(st,path)})}
+  const C=st.devs.CORE;for(const v in C.dhcp)if(L.sviUp[v]&&L.seg.get('S:CORE:'+v)===sg){const path=caminhoL2(L,'S:CORE:'+v,no);out.push({v:+v,pool:C.dhcp[v],de:'CORE',deNo:'S:CORE:'+v,path,bloq:bloqueioSnoop(st,path)})}
+  return out}
+function servidorDhcp(st,ep){return ofertasDhcp(st,ep).find(o=>!o.bloq)||null}
+function instalarPirata(st){const D=st.devs;D.ROGUE=novoEp('ROGUE','DESCONHECIDO','srv','Roteador doméstico (sem acesso)','b0be.76aa.0001',{ip:'192.168.0.1',mask:'255.255.255.0',gw:null,dns:null},1);
+  D.ROGUE.semAcesso=true;D.ROGUE.dhcpSrv={gw:'192.168.0.1',mask:'255.255.255.0',dns:'192.168.0.1'};Object.assign(D.SW1A.ifs['Gi1/0/7'],{vlan:20,portfast:true});
+  st.links.push({a:['SW1A','Gi1/0/7'],b:['ROGUE','nic']})}
+function concede(ep,s){const b=redeDe(s.pool.gw,s.pool.mask).split('.');if(s.v==null)b[3]=String(100+ep.host%100);else b[3]=String(ep.host);ep.lease={ip:b.join('.'),mask:s.pool.mask,gw:s.pool.gw,dns:s.pool.dns,vlan:s.v,servidor:s.pool.gw}}
 function dhcp(st,boot){for(const ep of Object.values(st.devs))if(ehEp(ep)&&ep.nic.dhcp){
   const agora=!!st.l2.epLink[ep.id];const flap=agora&&!ep.linkAntes;ep.linkAntes=agora;if(!agora||ep.liberado)continue;
   if(boot||flap||!ep.lease){const s=servidorDhcp(st,ep);if(s)concede(ep,s);else ep.lease=null}}}
 function renovar(st,ep,op){ep.liberado=false;const s=servidorDhcp(st,ep);
   if(capOn(st,op)){const xid=((ep.host*2654435761)^(st.cap.seq*40503))>>>0,no='E:'+ep.id,bc={src:'0.0.0.0',dst:'255.255.255.255',ttl:128,proto:'udp'};
     const cli=(t,x)=>({eth:'ip',src:ep.mac,dst:'ffff.ffff.ffff',ip:bc,l4:{udp:{sp:68,dp:67},dhcp:Object.assign({t,xid,mac:ep.mac,nome:ep.nome},x||{})}});
-    if(!s){for(let i=0;i<4;i++)capBcast(st,no,cli(1))}
-    else{const p=s.pool,b=redeDe(p.gw,p.mask).split('.');b[3]=String(ep.host);const yi=b.join('.'),sm=macDe(st,'CORE','Vlan'+s.v),ida=caminhoL2(st.l2,'S:CORE:'+s.v,no);
-      const srvr=t=>({eth:'ip',src:sm,dst:ep.mac,ip:{src:p.gw,dst:yi,ttl:255,proto:'udp'},l4:{udp:{sp:67,dp:68},dhcp:{t,xid,mac:ep.mac,yi,srv:p.gw,mask:p.mask,router:p.gw,dns:p.dns,lease:86400}}});
-      capBcast(st,no,cli(1));capUni(st,ida,srvr(2));capBcast(st,no,cli(3,{req:yi,srv:p.gw}));capUni(st,ida,srvr(5))}}if(s){concede(ep,s);st.own=donos(st);return true}st.own=donos(st);return false}
+    const ofs=ofertasDhcp(st,ep);const corta=o=>o.bloq?{nos:o.path.nos.slice(0,o.bloq.k+1),gis:o.path.gis.slice(0,o.bloq.k)}:o.path;
+    const yiDe=o=>{const b=redeDe(o.pool.gw,o.pool.mask).split('.');b[3]=String(o.v==null?100+ep.host%100:ep.host);return b.join('.')};
+    const srvr=(o,t)=>{const yi=yiDe(o),p=o.pool;return{eth:'ip',src:o.v==null?st.devs[o.de].mac:macDe(st,'CORE','Vlan'+o.v),dst:ep.mac,ip:{src:p.gw,dst:yi,ttl:o.v==null?64:255,proto:'udp'},l4:{udp:{sp:67,dp:68},dhcp:{t,xid,mac:ep.mac,yi,srv:p.gw,mask:p.mask,router:p.gw,dns:p.dns,lease:o.v==null?7200:86400}}}};
+    if(!s){capBcast(st,no,cli(1));ofs.forEach(o=>capUni(st,corta(o),srvr(o,2)));for(let i=0;i<3;i++)capBcast(st,no,cli(1))}
+    else{capBcast(st,no,cli(1));ofs.forEach(o=>capUni(st,corta(o),srvr(o,2)));const yi=yiDe(s);capBcast(st,no,cli(3,{req:yi,srv:s.pool.gw}));capUni(st,s.path,srvr(s,5))}}
+  if(op&&op.registrar)for(const o of ofertasDhcp(st,ep))if(o.bloq)log(st,o.bloq.dev,`%DHCP_SNOOPING-5-DHCP_SNOOPING_UNTRUSTED_PORT: DHCP_SNOOPING drop message on untrusted port, message type: DHCPOFFER, MAC sa: ${o.v==null?st.devs[o.de].mac:macDe(st,'CORE','Vlan'+o.v)}`);
+  if(s){concede(ep,s);st.own=donos(st);return true}st.own=donos(st);return false}
 function liberar(st,ep,op){if(capOn(st,op)&&ep.lease){const s=servidorDhcp(st,ep),c=ep.lease;if(s)capUni(st,caminhoL2(st.l2,'E:'+ep.id,'S:CORE:'+s.v),{eth:'ip',src:ep.mac,dst:macDe(st,'CORE','Vlan'+s.v),ip:{src:c.ip,dst:c.servidor,ttl:128,proto:'udp'},l4:{udp:{sp:68,dp:67},dhcp:{t:7,xid:(ep.host*977)>>>0,mac:ep.mac,ci:c.ip,srv:c.servidor}}})}
   ep.lease=null;ep.liberado=true;st.own=donos(st)}
 
@@ -362,7 +377,7 @@ function resolver(st,de,nome,op){op=op||{};nome=String(nome).toLowerCase().repla
   else return Object.assign({ok:false,motivo:'timeout'},base);
   if(ida){const rc=res.ok?0:res.motivo==='servfail'?2:3;
     const volta=viajar(st,srvDev,{src:srv,dst:ida.pk.src,ttl:ttlIni(S,srv),rep:true,proto:'udp',l4:{udp:{sp:53,dp:sp},dns:{id,q:nome,resp:true,rcode:rc,a:res.ok?res.ip:null}}},ctx);
-    if(!volta.ok)return{ok:false,motivo:'timeout',srv,nomeSrv}}
+    if(!volta.ok||volta.entregue!==de)return{ok:false,motivo:'timeout',srv,nomeSrv}}
   return Object.assign(res,base)}
 
 function ping(st,de,alvo,op){op=op||{};const d=st.devs[de];const r={de,alvo,ip:null,nome:null};
@@ -379,7 +394,7 @@ function ping(st,de,alvo,op){op=op||{};const d=st.devs[de];const r={de,alvo,ip:n
   if(op.perde)return Object.assign(r,{tipo:'timeout'});
   const dd=st.devs[ida.entregue];
   const volta=viajar(st,ida.entregue,{src:r.ip,dst:ida.pk.src,ttl:ttlIni(dd,r.ip),rep:true,proto:'icmp',l4:{icmp:{t:0,code:0,id:1,seq}}},ctx);r.volta=volta;
-  if(!volta.ok)return Object.assign(r,{tipo:'timeout'});
+  if(!volta.ok||volta.entregue!==de)return Object.assign(r,{tipo:'timeout'});
   r.ttl=volta.pk.ttl;r.lossy=ida.lossy||volta.lossy;
   const inet=st.devs[ida.entregue].tipo==='net';r.ms=Math.max(1,Math.round((ida.hops.length+volta.hops.length)/2))+(inet?11:0)+(r.lossy?40:0);
   r.tipo='ok';return r}
@@ -398,8 +413,8 @@ function conectar(st,de,alvo,porta,op){op=op||{};const d=st.devs[de];const r={de
     return Object.assign(r,{ok:false,motivo:ida.motivo,ida})}
   if(ida.lossy&&capOn(st,ctx))viajar(st,de,syn(true),c2);
   const v=viajar(st,ida.entregue,{src:r.ip,dst:ida.pk.src,ttl:128,rep:true,proto:'tcp',l4:{tcp:{sp:porta,dp:sp,flags:'SA',seq:isn2,ack:(isn+1)>>>0}}},ctx);
-  if(v.ok&&capOn(st,ctx))viajar(st,de,{src,dst:r.ip,ttl:ttlIni(d),rep:false,proto:'tcp',porta,l4:{tcp:{sp,dp:porta,flags:'A',seq:(isn+1)>>>0,ack:(isn2+1)>>>0}}},c2);
-  return Object.assign(r,{ok:v.ok,motivo:v.ok?null:'timeout',lossy:ida.lossy||v.lossy})}
+  if(v.ok&&v.entregue===de&&capOn(st,ctx))viajar(st,de,{src,dst:r.ip,ttl:ttlIni(d),rep:false,proto:'tcp',porta,l4:{tcp:{sp,dp:porta,flags:'A',seq:(isn+1)>>>0,ack:(isn2+1)>>>0}}},c2);
+  const vok=v.ok&&v.entregue===de;return Object.assign(r,{ok:vok,motivo:vok?null:'timeout',lossy:ida.lossy||v.lossy})}
 
 function traceroute(st,de,alvo,op){op=op||{};const d=st.devs[de];const r={de,alvo,linhas:[]};
   if(ehEp(d)&&!cfgIP(st,d).up)return Object.assign(r,{tipo:'midia'});
@@ -423,16 +438,19 @@ const COND={
   storm:st=>st.l2.stormSeg.size===0,
   perda:st=>!st.l2.link.some(l=>l.up&&l.lossy),
   errdis:st=>!Object.values(PORTA_EP).some(([d,p])=>st.devs[d].ifs[p].errdis),
+  raiz:st=>Object.values(st.l2.stp).every(r=>Object.values(r.raiz).every(x=>x==='CORE')),
 };
-const COND_DESC={po1:'Port-channel1 com os 2 links agregados nos dois lados',storm:'Nenhuma tempestade de broadcast (loop) na rede',perda:'Nenhum link com erro de duplex / perda de pacotes',errdis:'Nenhuma porta de usuário em err-disabled'};
+const COND_EXTRA={semPirata:st=>{const R=st.devs.ROGUE;if(!R)return true;return!st.l2.epLink.ROGUE||!st.l2.seg.has('E:ROGUE')||st.l2.seg.get('E:ROGUE')!==st.l2.seg.get('S:CORE:20')||!!(ofertasDhcp(st,st.devs.RECEP).find(o=>o.de==='ROGUE')||{}).bloq},
+  snoop:st=>{const A=st.devs.SW1A;if(!(A.snoop&&A.snoop.on&&A.snoop.vlans.includes(20)))return false;const o=ofertasDhcp(st,st.devs.RECEP);const pir=o.find(x=>x.de==='ROGUE');return!!(pir&&pir.bloq)&&!!o.find(x=>x.de==='CORE'&&!x.bloq)}};
+const COND_DESC={raiz:'CORE-01 é a raiz do STP em todas as VLANs',semPirata:'Nenhum servidor DHCP não autorizado atendendo a VLAN 20',snoop:'DHCP snooping ativo na VLAN 20 do SW-1A, bloqueando o pirata e confiando no uplink',po1:'Port-channel1 com os 2 links agregados nos dois lados',storm:'Nenhuma tempestade de broadcast (loop) na rede',perda:'Nenhum link com erro de duplex / perda de pacotes',errdis:'Nenhuma porta de usuário em err-disabled'};
 function matriz(){const T=[];
   for(const id of['RECEP','FAT','LAUDO','TOMO']){T.push({t:'ping',de:id,alvo:GW_VLAN[VLAN_EP[id]]},{t:'ping',de:id,alvo:'10.10.1.20'},{t:'ping',de:id,alvo:'8.8.8.8'})}
   for(const id of['RECEP','FAT','LAUDO'])T.push({t:'dns',de:id,nome:'pacs.hvc.local'},{t:'dns',de:id,nome:'google.com'});
   T.push({t:'tcp',de:'TOMO',alvo:'10.10.1.20',porta:104},{t:'tcp',de:'LAUDO',alvo:'10.10.1.20',porta:443},{t:'ping',de:'DNS',alvo:'8.8.8.8'},{t:'ping',de:'PACS',alvo:'10.10.1.10'});
   for(const k of Object.keys(COND))T.push({t:'cond',id:k});return T}
-function rodarTeste(st,t){if(t.t==='ping')return ping(st,t.de,t.alvo).tipo==='ok';if(t.t==='dns')return resolver(st,t.de,t.nome).ok;if(t.t==='tcp')return conectar(st,t.de,t.alvo,t.porta).ok;if(t.t==='cond')return COND[t.id](st);return false}
+function rodarTeste(st,t){if(t.t==='ping')return ping(st,t.de,t.alvo).tipo==='ok';if(t.t==='dns')return resolver(st,t.de,t.nome).ok;if(t.t==='tcp')return conectar(st,t.de,t.alvo,t.porta).ok;if(t.t==='cond')return(COND[t.id]||COND_EXTRA[t.id])(st);if(t.t==='semping')return ping(st,t.de,t.alvo).tipo!=='ok';if(t.t==='bloqtcp'){const r=conectar(st,t.de,t.alvo,t.porta);return!r.ok&&r.motivo==='acl'}return false}
 function descTeste(st,t){const n=t.de&&st.devs[t.de]?st.devs[t.de].nome:'';
-  if(t.t==='ping')return`${n} → ping ${t.alvo}`;if(t.t==='dns')return`${n} → resolver ${t.nome}`;if(t.t==='tcp')return`${n} → conexão TCP ${t.alvo}:${t.porta}${t.porta===104?' (DICOM)':t.porta===443?' (HTTPS)':''}`;return COND_DESC[t.id]}
+  if(t.t==='ping')return`${n} → ping ${t.alvo}`;if(t.t==='dns')return`${n} → resolver ${t.nome}`;if(t.t==='tcp')return`${n} → conexão TCP ${t.alvo}:${t.porta}${t.porta===104?' (DICOM)':t.porta===443?' (HTTPS)':''}`;if(t.t==='semping')return`${n} → NÃO pode alcançar ${t.alvo} (regra de segurança da mudança)`;if(t.t==='bloqtcp')return`${n} → TCP ${t.alvo}:${t.porta} tem que ser BLOQUEADO pela ACL (exigência da auditoria)`;return COND_DESC[t.id]}
 function validar(st,ch){const lista=[...ch.defeitos.flatMap(x=>x.testes),...matriz()];const falhas=[],vistos=new Set();
   for(const t of lista){const k=JSON.stringify(t);if(vistos.has(k))continue;vistos.add(k);if(!rodarTeste(st,t))falhas.push(descTeste(st,t))}return falhas}
 
@@ -628,21 +646,117 @@ const DEFEITOS=[
  correcao:()=>['FGT-HVC: config router static → edit 2 → set dst 10.10.0.0 255.255.0.0 → set gateway 10.10.0.2 → set device port2 → end'],
  cmds:()=>[{dev:'FGT',linhas:['config router static','edit 2','set dst 10.10.0.0 255.255.0.0','set gateway 10.10.0.2','set device port2','next','end']}],
  licao:'Roteamento é ida E volta. Se de um ponto funciona e de outro não, compare as origens: o equipamento do meio pode não ter rota de retorno para uma delas.'},
+/* ---------- Fase 2 · parte 3: novos casos (Júnior, Pleno, Sênior) ---------- */
+{id:'ipdup',nivel:1,area:'Host · IP duplicado',
+ aplicar(st,r,oc){oc.add('LAUDO');oc.add('TOMO');Object.assign(st.devs.LAUDO.nic,{dhcp:false,ip:'10.10.30.50',mask:'255.255.255.0',gw:'10.10.30.1',dns:'10.10.1.10'});st.devs.LAUDO.lease=null;return{}},
+ chamado:()=>({pri:'P2',titulo:'Tomógrafo "cai e volta" e não envia exames desde hoje cedo',desc:'"O tomógrafo diz que a rede está ok, mas o envio ao PACS falha." Ao mesmo tempo, o técnico de campo instalou um PC-LAUDO03 novo na sala ao lado e "copiou a configuração de rede que estava colada no equipamento".',solicitante:DOC_EP.TOMO,equip:'TOMO-01 / PC-LAUDO03'}),
+ testes:()=>[{t:'tcp',de:'TOMO',alvo:'10.10.1.20',porta:104},{t:'ping',de:'TOMO',alvo:'10.10.30.1'}],
+ dicas:()=>['Compare a configuração dos dois equipamentos da sala: <code>rede mostrar</code> no TOMO-01 e <code>ipconfig /all</code> no PC-LAUDO03.','Os dois estão com o IP 10.10.30.50. Repare no "(Duplicado)" no ipconfig. As respostas destinadas ao tomógrafo estão indo para o PC.','O PC tem que pegar IP automático: no PC-LAUDO03, <code>netsh interface ip set address "Ethernet" dhcp</code>. Depois teste <code>dicom eco</code> no TOMO-01.'],
+ causa:()=>'O PC-LAUDO03 foi configurado à mão com 10.10.30.50, o IP fixo do tomógrafo. Com o IP duplicado, a rede entrega as respostas para quem responder primeiro ao ARP: neste caso o PC, e o tomógrafo fica sem retorno.',
+ correcao:()=>['PC-LAUDO03: netsh interface ip set address "Ethernet" dhcp'],
+ cmds:()=>[{dev:'LAUDO',linhas:['netsh interface ip set address "Ethernet" dhcp']}],
+ licao:'IP fixo só em equipamento documentado (servidores, equipamentos médicos). Sintoma de IP duplicado: "funciona às vezes", o Windows avisa "(Duplicado)" e a captura mostra o mesmo IP respondendo com outro MAC.'},
+
+{id:'svc',nivel:1,area:'Servidor · serviço parado',
+ aplicar(st){const P=st.devs.PACS;P.servicos.tcp=P.servicos.tcp.filter(p=>p!==443);P.parados=['PACS-Web'];return{}},
+ chamado:()=>({pri:'P2',titulo:'Laudo web não abre: "não é possível acessar esse site"',desc:'"Desde a atualização do servidor de imagens ontem à noite, o sistema de laudos no navegador não abre em nenhum PC." O tomógrafo continua enviando exames normalmente.',solicitante:DOC_EP.LAUDO,equip:'SRV-PACS'}),
+ testes:()=>[{t:'tcp',de:'LAUDO',alvo:'10.10.1.20',porta:443}],
+ dicas:()=>['A rede chega no servidor? Do PC-LAUDO03: <code>ping 10.10.1.20</code>. E o serviço web (porta 443)? <code>tnc 10.10.1.20 -port 443</code>.','Ping ok e porta fechada: o problema está no servidor, não na rede. Abra o SRV-PACS e veja <code>netstat -an</code> e <code>sc query</code>.','O serviço PACS-Web está parado. No SRV-PACS: <code>net start PACS-Web</code>.'],
+ causa:()=>'O serviço PACS-Web (HTTPS, porta 443) não subiu depois da atualização do servidor. A rede estava perfeita: o ping respondia e o DICOM (porta 104) funcionava; só a porta 443 não tinha ninguém escutando, e o servidor respondia RST.',
+ correcao:()=>['SRV-PACS: net start PACS-Web'],
+ cmds:()=>[{dev:'PACS',linhas:['net start PACS-Web']}],
+ licao:'Ping prova a rede, não o serviço. Teste a porta (tnc / Test-NetConnection) e, no servidor, veja quem está escutando (netstat -an). Assim você não perde tempo culpando a rede.'},
+
+{id:'dhcpdns',nivel:2,area:'Core · escopo DHCP',
+ aplicar(st,r,oc){const v=pick(r,[10,20]);const eps=Object.keys(VLAN_EP).filter(e=>VLAN_EP[e]===v);eps.forEach(e=>oc.add(e));st.devs.CORE.dhcp[v].dns='10.10.1.99';return{v,eps}},
+ chamado:c=>({pri:'P2',titulo:`${c.v===20?'Recepção':'Faturamento'}: "a internet caiu" em todos os PCs do setor`,desc:'"Nenhum site e nenhum sistema por nome abre, em nenhum PC do setor." Ontem o N3 "padronizou os escopos de DHCP do core". Um PC formatado hoje veio com o mesmo problema.',solicitante:c.v===20?DOC_EP.RECEP:DOC_EP.FAT,equip:'CORE-01'}),
+ testes:c=>c.eps.map(e=>({t:'dns',de:e,nome:'pacs.hvc.local'})),
+ dicas:c=>['Por IP funciona e por nome não? Então é DNS. Veja <code>ipconfig /all</code> no PC: de onde veio o DNS dele?','O DNS veio do DHCP (não foi digitado). Logo, o erro está no escopo de DHCP do CORE-01: <code>show running-config</code> e procure <code>ip dhcp pool VLAN'+c.v+'</code>.',`No CORE-01: <code>ip dhcp pool VLAN${c.v}</code> e <code>dns-server 10.10.1.10</code>. Depois o PC precisa pegar a configuração nova: <code>ipconfig /renew</code>.`],
+ causa:c=>`O escopo DHCP da VLAN ${c.v} no CORE-01 estava entregando o DNS 10.10.1.99, que não existe. Todo PC do setor recebia o DNS errado automaticamente. Corrigir o escopo não basta: cada PC só pega o valor novo ao renovar o IP.`,
+ correcao:c=>[`CORE-01: ip dhcp pool VLAN${c.v} → dns-server 10.10.1.10`,'PCs do setor: ipconfig /renew'],
+ cmds:c=>[IOS_FIX('CORE',[`ip dhcp pool VLAN${c.v}`,'dns-server 10.10.1.10']),...c.eps.map(e=>({dev:e,linhas:['ipconfig /renew']}))],
+ licao:'Se o setor inteiro tem o mesmo erro e ninguém mexeu nos PCs, olhe quem entrega a configuração: o DHCP. E lembre: mudança no escopo só chega ao PC quando ele renova o IP.'},
+
+{id:'raiz',nivel:3,area:'STP · raiz errada',
+ aplicar(st){st.devs.SW3A.stpPrio=0;log(st,'SW3A','%SPANTREE-5-ROOTCHANGE: Root Changed for vlan 10: New Root Port is -none-. New Root Mac Address is 00a1.c0de.3a00');log(st,'SW1A','%SPANTREE-5-ROOTCHANGE: Root Changed for vlan 20: New Root Port is GigabitEthernet1/0/48. New Root Mac Address is 00a1.c0de.3a00');return{}},
+ chamado:()=>({pri:'P3',titulo:'Zabbix: Po1 sem tráfego e link de backup do 1º andar em 90%',desc:'Alerta do NOC: "Port-channel1 (SW-1A ↔ CORE-01) com tráfego zero; link SW-1A Gi1/0/48 ↔ SW-3A saturado". Usuários do 1º andar reclamam de lentidão. Ontem o SW-3A foi trocado por um de reserva e a configuração foi colada de um modelo.',solicitante:'NOC / monitoramento',equip:'SW-1A / SW-3A'}),
+ testes:()=>[{t:'cond',id:'raiz'}],
+ dicas:()=>['O tráfego mudou de caminho sem nenhum cabo cair. Quem decide o caminho entre switches é o STP. No SW-1A: <code>show spanning-tree vlan 20</code>. Quem é a raiz (Root ID)?','A raiz virou o SW-3A (endereço 00a1.c0de.3a00), não o CORE-01. Veja <code>show running-config</code> no SW-3A: a prioridade dele está em 0, menor que a do core (4096).','No SW-3A: <code>spanning-tree vlan 1-4094 priority 32768</code>. A raiz volta para o CORE-01 e o Po1 volta a encaminhar.'],
+ causa:()=>'O SW-3A de reserva veio com "spanning-tree vlan 1-4094 priority 0". Como 0 é menor que 4096, ele virou a raiz do STP. Para chegar até ele, o SW-1A passou a usar o link de backup e bloqueou o Po1 (2 Gb/s) para evitar loop.',
+ correcao:()=>['SW-3A: spanning-tree vlan 1-4094 priority 32768'],
+ cmds:()=>[IOS_FIX('SW3A',['spanning-tree vlan 1-4094 priority 32768'])],
+ licao:'Defina a raiz de propósito (core com prioridade baixa) e confira a prioridade de todo switch novo antes de ligar. Raiz errada não derruba a rede: ela piora em silêncio, e só o monitoramento ou o show spanning-tree mostram.'},
+
+{id:'aclordem',nivel:3,area:'Core · ordem da ACL',
+ aplicar(st){const C=st.devs.CORE,any={any:true},r=(ip,wc)=>({ip,wc});
+   C.acls['FAT-IN']={regras:[{seq:5,remark:'CHG-1201 isolar faturamento da imagem'},{seq:10,acao:'deny',proto:'ip',src:r('10.10.10.0','0.0.0.255'),dst:any},{seq:20,acao:'deny',proto:'ip',src:r('10.10.10.0','0.0.0.255'),dst:r('10.10.30.0','0.0.0.255')},{seq:30,acao:'permit',proto:'ip',src:any,dst:any}]};
+   C.svis[10].aclIn='FAT-IN';return{}},
+ chamado:()=>({pri:'P1',titulo:'Faturamento inteiro sem sistema, sem internet e sem nada',desc:'"Desde as 7h nenhum PC do faturamento acessa nada." Ontem à noite foi executada a CHG-1201: "isolar o faturamento da VLAN de imagem (exigência da auditoria)". A exigência continua valendo: o faturamento não pode alcançar a imagem.',solicitante:DOC_EP.FAT,equip:'CORE-01'}),
+ testes:()=>[{t:'ping',de:'FAT',alvo:'10.10.1.20'},{t:'semping',de:'FAT',alvo:'10.10.30.63'}],
+ dicas:()=>['O PC alcança o próprio gateway (<code>ping 10.10.10.1</code>) e nada além? Olhe o que mudou no CORE-01: <code>show access-lists</code>.','A ACL FAT-IN é lida de cima para baixo e a primeira linha que casa decide. A linha 10 nega TUDO que sai da rede 10.10.10.0 (destino any). As linhas de baixo nunca são usadas.','Remova só a linha errada e mantenha o isolamento: <code>ip access-list extended FAT-IN</code> e <code>no 10</code>. A linha 20 continua bloqueando a imagem.'],
+ causa:()=>'A CHG criou a ACL FAT-IN com a linha 10 "deny ip 10.10.10.0 0.0.0.255 any" antes da regra certa. Como a ACL para na primeira linha que casa, todo o tráfego do faturamento era negado, e não só o destinado à imagem.',
+ correcao:()=>['CORE-01: ip access-list extended FAT-IN → no 10 (a linha 20 mantém o bloqueio da imagem)'],
+ cmds:()=>[IOS_FIX('CORE',['ip access-list extended FAT-IN','no 10'])],
+ licao:'Na ACL a ordem é tudo: regra específica em cima, genérica embaixo, e um "permit" no fim, se for o caso. Ao corrigir, prove as duas coisas: o que deve passar passa, e o que deve ser bloqueado continua bloqueado.'},
+
+{id:'aclout',nivel:3,area:'Core · direção da ACL',
+ aplicar(st){const C=st.devs.CORE;const h=ip=>({ip,wc:'0.0.0.0'}),any={any:true},n30={ip:'10.10.30.0',wc:'0.0.0.255'};st.devs.FAT.servicos={tcp:[3389]};
+   C.acls['PACS-IMAGEM']={regras:[{seq:10,acao:'permit',proto:'icmp',src:any,dst:any},{seq:20,acao:'permit',proto:'tcp',src:n30,dst:h('10.10.1.20'),porta:104},{seq:25,acao:'permit',proto:'tcp',src:n30,dst:h('10.10.1.20'),porta:443},
+     {seq:30,acao:'permit',proto:'udp',src:n30,dst:h('10.10.1.10'),porta:53},{seq:40,acao:'deny',proto:'ip',src:n30,dst:{ip:'10.10.0.0',wc:'0.0.255.255'}},{seq:50,acao:'permit',proto:'ip',src:any,dst:any}]};
+   C.svis[30].aclOut='PACS-IMAGEM';return{}},
+ chamado:()=>({pri:'P2',titulo:'Auditoria: a VLAN de imagem acessa o RDP do faturamento',desc:'Relatório do pentest: "a partir do PC-LAUDO03 foi possível abrir a área de trabalho remota (RDP, TCP 3389) do PC-FAT02". A ACL PACS-IMAGEM, que deveria impedir isso, está aplicada no core desde a CHG-1180. Nada pode parar de funcionar para a imagem.',solicitante:'Segurança da informação',equip:'CORE-01'}),
+ testes:()=>[{t:'bloqtcp',de:'LAUDO',alvo:'10.10.10.42',porta:3389}],
+ dicas:()=>['Confirme o problema: do PC-LAUDO03, <code>tnc 10.10.10.42 -port 3389</code>. Depois veja a ACL e onde ela está aplicada: <code>show access-lists</code> e <code>show running-config interface vlan 30</code>.','As linhas da ACL usam origem 10.10.30.0 (a imagem). Mas ela está aplicada com "out": só confere o que ENTRA na VLAN 30, cuja origem nunca é 10.10.30.x. Repare nos contadores (matches) zerados nas linhas de deny.',`Inverta a direção: <code>interface vlan 30</code>, <code>no ip access-group PACS-IMAGEM out</code>, <code>ip access-group PACS-IMAGEM in</code>. Teste de novo o RDP e o <code>dicom eco</code>.`],
+ causa:()=>'A ACL estava certa, mas aplicada na direção errada. "out" na interface Vlan30 filtra o tráfego que vai PARA a VLAN de imagem; como todas as regras falam de origem 10.10.30.0, nenhuma casava e tudo caía no "permit ip any any" da linha 50.',
+ correcao:()=>['CORE-01: interface vlan 30 → no ip access-group PACS-IMAGEM out → ip access-group PACS-IMAGEM in'],
+ cmds:()=>[IOS_FIX('CORE',['interface vlan 30','no ip access-group PACS-IMAGEM out','ip access-group PACS-IMAGEM in'])],
+ licao:'Na interface VLAN (SVI), "in" = o que sai da VLAN em direção ao roteador; "out" = o que o roteador entrega para dentro da VLAN. Contador de "matches" zerado numa regra que deveria bater é a pista de direção errada.'},
+
+{id:'rogue',nivel:3,area:'DHCP · servidor pirata',
+ aplicar(st,r,oc){oc.add('RECEP');instalarPirata(st);return{}},
+ chamado:()=>({pri:'P2',titulo:'Recepção do PS com IP 192.168.0.x e sem sistema',desc:'"Alguns PCs da recepção ficaram sem sistema e o ipconfig mostra um IP estranho, 192.168.0.algo." Ninguém da TI mexeu na recepção. A enfermagem comentou que "trouxeram um roteador para ter Wi-Fi na sala de espera".',solicitante:DOC_EP.RECEP,equip:'PC-RECEP01 / SW-1A'}),
+ testes:()=>[{t:'ping',de:'RECEP',alvo:'10.10.1.20'},{t:'cond',id:'semPirata'}],
+ dicas:()=>['No PC-RECEP01, <code>ipconfig /all</code>: quem é o "Servidor DHCP" que entregou esse IP? O hospital não usa 192.168.0.x.','Algum aparelho na VLAN 20 está distribuindo IP. Ache a porta dele: no SW-1A, <code>show mac address-table</code> e <code>show interfaces status</code>. Que porta tem um MAC que não é de nenhum equipamento conhecido?',`É a Gi1/0/7. No SW-1A: <code>interface gi1/0/7</code> e <code>shutdown</code>. Depois, no PC: <code>ipconfig /renew</code>.`],
+ causa:()=>'Um roteador doméstico foi ligado na porta Gi1/0/7 do SW-1A (VLAN 20). Ele tem servidor DHCP próprio e respondeu mais rápido que o CORE-01, entregando 192.168.0.x com gateway 192.168.0.1. Os PCs que renovaram o IP caíram numa rede que não leva a lugar nenhum.',
+ correcao:()=>['SW-1A: interface gi1/0/7 → shutdown','PC-RECEP01: ipconfig /renew'],
+ cmds:()=>[IOS_FIX('SW1A',['interface gi1/0/7','shutdown']),{dev:'RECEP',linhas:['ipconfig /renew']}],
+ licao:'IP de uma faixa que o hospital não usa = DHCP pirata. ipconfig /all mostra quem entregou o IP; show mac address-table mostra em que porta ele está. A prevenção definitiva é o DHCP snooping (nível Sênior).'},
+
+{id:'fwassim',nivel:4,area:'FortiGate · rota mais específica',grupo:'internet',
+ aplicar(st){st.devs.FGT.rotas.push({id:3,dst:'10.10.30.0',mask:'255.255.255.0',gw:'200.160.2.1',dev:'port1',status:true});return{}},
+ chamado:()=>({pri:'P1',titulo:'Só a imagem (3º andar) está sem internet',desc:'"No 3º andar nenhum site abre; no resto do hospital tudo normal." Curiosamente, o nslookup de sites externos funciona nos PCs da imagem. Ontem a equipe de segurança "testou uma VPN com um fornecedor" no FortiGate e garante que desfez tudo.',solicitante:DOC_EP.LAUDO,equip:'FGT-HVC'}),
+ testes:()=>[{t:'ping',de:'LAUDO',alvo:'8.8.8.8'},{t:'ping',de:'TOMO',alvo:'8.8.8.8'}],
+ dicas:()=>['Compare: do PC-LAUDO03, <code>ping 8.8.8.8</code> falha e <code>nslookup google.com</code> funciona. A diferença: no nslookup quem sai para a internet é o SRV-DNS (rede 10.10.1.x), não o PC (10.10.30.x).','Rode um ping do PC-LAUDO03 e depois, no FGT-HVC, <code>diagnose debug flow trace start 10</code>: "reverse path check fail". Veja <code>get router info routing-table all</code>: existe uma rota 10.10.30.0/24 apontando para a port1 (WAN).','Rota mais específica (/24) ganha da rota interna (/16). Apague a rota que sobrou do teste: <code>config router static</code>, <code>delete 3</code>, <code>end</code>.'],
+ causa:()=>'O teste de VPN deixou a rota estática 3 (10.10.30.0/24 via port1). Como /24 é mais específica que a rota interna 10.10.0.0/16, o FortiGate passou a achar que a imagem fica do lado da internet: os pacotes que chegavam da imagem pela port2 falhavam na checagem de caminho reverso e eram descartados. As outras VLANs não eram afetadas.',
+ correcao:()=>['FGT-HVC: config router static → delete 3 → end'],
+ cmds:()=>[{dev:'FGT',linhas:['config router static','delete 3','end']}],
+ licao:'Roteamento sempre escolhe a rota MAIS ESPECÍFICA (maior máscara), não a mais antiga nem a "principal". Quando só uma sub-rede falha, procure uma rota que case só com ela. E desconfie de "desfiz tudo": confira a tabela.'},
+
+{id:'rogue2',nivel:4,area:'DHCP snooping',
+ aplicar(st,r,oc){oc.add('RECEP');instalarPirata(st);log(st,'SW1A','%LINK-3-UPDOWN: Interface GigabitEthernet1/0/7, changed state to up');return{}},
+ chamado:()=>({pri:'P1',titulo:'DHCP pirata na recepção pela 3ª vez no mês',desc:'Mesmo problema de novo: PCs da recepção com IP 192.168.0.x. O gerente de TI exige que, desta vez, a rede bloqueie sozinha qualquer aparelho que tente distribuir IP na VLAN 20, mesmo que alguém ligue outro roteador amanhã em qualquer tomada.',solicitante:'Gerência de TI',equip:'SW-1A'}),
+ testes:()=>[{t:'ping',de:'RECEP',alvo:'10.10.1.20'},{t:'cond',id:'snoop'}],
+ dicas:()=>['Resolver o sintoma é igual ao caso anterior (ache a porta com <code>show mac address-table</code>). Mas a exigência é prevenir: o recurso que bloqueia DHCP de aparelho não autorizado é o <b>DHCP snooping</b>.','DHCP snooping deixa passar ofertas DHCP só pelas portas marcadas como confiáveis (trust). No SW-1A: <code>ip dhcp snooping</code> e <code>ip dhcp snooping vlan 20</code>. Atenção: de onde vêm as ofertas do servidor de verdade?','O DHCP legítimo chega pelo uplink Po1. Sem trust nele, você bloqueia o servidor certo também. <code>interface port-channel 1</code> e <code>ip dhcp snooping trust</code>. Depois <code>ipconfig /renew</code> no PC e <code>show ip dhcp snooping</code>.'],
+ causa:()=>'Um roteador doméstico na Gi1/0/7 do SW-1A distribuía IP na VLAN 20. Desligar a porta resolve hoje, mas não impede a próxima vez. Com DHCP snooping ativo na VLAN 20 e só o uplink (Po1) como confiável, o switch descarta qualquer oferta DHCP que chegue por porta de usuário.',
+ correcao:()=>['SW-1A: ip dhcp snooping → ip dhcp snooping vlan 20 → interface port-channel 1 → ip dhcp snooping trust','PC-RECEP01: ipconfig /renew'],
+ cmds:()=>[IOS_FIX('SW1A',['ip dhcp snooping','ip dhcp snooping vlan 20','interface port-channel 1','ip dhcp snooping trust']),{dev:'RECEP',linhas:['ipconfig /renew']}],
+ licao:'Sênior resolve a causa e fecha a porta para o problema voltar. DHCP snooping: ligue na VLAN, marque como trust só o caminho até o servidor DHCP real (uplinks) e nunca as portas de usuário. Esquecer o trust do uplink derruba o DHCP de todo mundo.'}
+
 ];
 function st_nome(id){return{RECEP:'PC-RECEP01',FAT:'PC-FAT02',LAUDO:'PC-LAUDO03',TOMO:'TOMO-01'}[id]||id}
 
 function novoChamado(n,seed,op){op=op||{};
   for(let k=0;k<20;k++){const s=(seed+k*7919)>>>0;const r=rng(s);const st=criarRede();
-    const nivel=Math.min(op.nivelMax||3,op.nivel||(n<=3?1:n<=6?2:3));
-    let pool=DEFEITOS.filter(f=>op.forcar?f.id===op.forcar:f.nivel<=nivel);
+    const multi=op.forcar==='multi';const nivel=multi?4:Math.min(op.nivelMax||4,op.nivel||(n<=3?1:n<=6?2:n<=9?3:4));
+    let pool=multi?DEFEITOS.filter(f=>f.nivel>=2&&f.nivel<=3&&!['rogue'].includes(f.id)):DEFEITOS.filter(f=>op.forcar?f.id===op.forcar:f.nivel<=nivel);
     if(!op.forcar&&op.evitar){const p2=pool.filter(f=>!op.evitar.includes(f.id));if(p2.length)pool=p2}
-    const qtd=!op.forcar&&nivel===3&&n>=8&&r()<0.35?2:1;const defs=[],oc=new Set();
+    const qtd=multi?3:!op.forcar&&nivel>=3&&n>=8&&r()<(nivel===4?0.5:0.35)?2:1;const defs=[],oc=new Set();
     for(let q=0;q<qtd;q++){const cand=pool.filter(f=>!defs.some(x=>x.f.id===f.id||(f.grupo&&x.f.grupo===f.grupo)));if(!cand.length)break;
-      const peso=cand.map(f=>f.nivel===nivel?3:1),tot=peso.reduce((a,b)=>a+b,0);let x=r()*tot,f=cand[0];for(let i=0;i<cand.length;i++){x-=peso[i];if(x<0){f=cand[i];break}}
+      const peso=cand.map(f=>multi||f.nivel===nivel?3:1),tot=peso.reduce((a,b)=>a+b,0);let x=r()*tot,f=cand[0];for(let i=0;i<cand.length;i++){x-=peso[i];if(x<0){f=cand[i];break}}
       defs.push({f,ctx:f.aplicar(st,r,oc)})}
     atualizar(st,{boot:true});
     defs.forEach(x=>{x.testes=x.f.testes(x.ctx);x.ticket=x.f.chamado(x.ctx)});
-    if(!defs.every(x=>x.testes.some(t=>!rodarTeste(st,t))))continue;
+    if(defs.length<qtd||!defs.every(x=>x.testes.some(t=>!rodarTeste(st,t))))continue;
     const pri=defs.map(x=>x.ticket.pri).sort()[0];
     const num=(defs[0].f.id==='lacp'?'ALR-':defs[0].f.id==='trunk'||defs[0].f.id==='vlandb'?'INC-':'INC-')+(24800+n*13+Math.floor(r()*9));
     return{st,ch:{n,seed:s,nivel,num,pri,defeitos:defs}}}
@@ -650,7 +764,7 @@ function novoChamado(n,seed,op){op=op||{};
 
 const Motor={ip2n,n2ip,ehIP,mascaraOk,lenDe,maskDe,naRede,redeDe,privado,casaCuringa,listaVlans,vlansTxt,rng,nomeLongo,ordemPorta,normIf,
   ehEp,ehSw,porta,criarRede,atualizar,construirL2,caminhoL2,cfgIP,renovar,liberar,donos,rotas,lpm,ipDe,noDe,ifUp,ipOrigem,
-  ping,traceroute,resolver,conectar,viajar,macDe,arpCache,matriz,validar,rodarTeste,descTeste,COND,DEFEITOS,novoChamado,log,
+  ping,traceroute,resolver,conectar,viajar,macDe,arpCache,ofertasDhcp,servidorDhcp,matriz,validar,rodarTeste,descTeste,COND,DEFEITOS,novoChamado,log,
   PORTA_EP,VLAN_EP,GW_VLAN,NOME_VLAN,EXTERNOS,custoPorta,pid,stNome:st_nome};
 if(typeof module!=='undefined'&&module.exports)module.exports=Motor;else raiz.Motor=Motor;
 })(typeof window!=='undefined'?window:globalThis);

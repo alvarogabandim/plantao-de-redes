@@ -59,6 +59,7 @@ function mudar(st,id,R,fn){const a=snap(st);const r=fn();const gs=guardas(st);M.
 /* ================= ponto de entrada ================= */
 function executar(st,id,linha){const d=st.devs[id];const R={linhas:[],anim:null,mudou:false,limpar:false};
   const s=String(linha).replace(/\s+$/,'');R.linhas.push(['cmd',[prompt(st,id),s]]);if(!s.trim())return R;
+  if(d.semAcesso){R.linhas.push(['bad','Sem acesso: equipamento desconhecido, que não é da TI. Não há console nem senha.']);return R}
   const fn=M.ehEp(d)?(d.tipo==='med'?tomo:win):d.tipo==='fw'?fos:ios;
   try{fn(st,id,s.trim(),R)}catch(e){R.linhas.push(['bad','Erro interno do simulador: '+e.message]);if(typeof console!=='undefined')console.error(e)}
   return R}
@@ -66,7 +67,7 @@ function prompt(st,id){const d=st.devs[id],t=T(st,id);
   if(d.tipo==='med')return'TOMO-01 rede>';
   if(M.ehEp(d))return'C:\\Users\\'+(d.tipo==='srv'?'Administrador':'tecnico')+'>';
   if(d.tipo==='fw'){const p=t.fos[t.fos.length-1];if(!p)return'FGT-HVC #';if(p.chave!=null)return`FGT-HVC (${p.chave}) #`;return`FGT-HVC (${p.tab.split(' ').pop()}) #`}
-  return d.nome+({exec:'>',priv:'#',config:'(config)#',if:t.ifs.length>1?'(config-if-range)#':'(config-if)#',vlan:'(config-vlan)#',acl:'(config-ext-nacl)#'}[t.modo])}
+  return d.nome+({exec:'>',priv:'#',config:'(config)#',if:t.ifs.length>1?'(config-if-range)#':'(config-if)#',vlan:'(config-vlan)#',acl:'(config-ext-nacl)#',dhcp:'(dhcp-config)#'}[t.modo])}
 
 const ATALHOS={
   win:['ipconfig /all','ping 10.10.1.20','ping 8.8.8.8','nslookup pacs.hvc.local','tracert 8.8.8.8','arp -a','tnc 10.10.1.20 -port 443','ipconfig /renew'],
@@ -80,14 +81,15 @@ function atalhos(st,id){const d=st.devs[id];if(d.tipo==='med')return ATALHOS.med
 const AJ_WIN=['Comandos deste PC (Windows):','  ipconfig  |  ipconfig /all  |  ipconfig /renew  |  ipconfig /release  |  ipconfig /flushdns',
   '  ping <ip ou nome> [-n N]       tracert <ip ou nome>        nslookup <nome> [servidor]','  arp -a  |  arp -d               tnc <ip ou nome> -port <porta>   (Test-NetConnection)',
   '  netsh interface ip set address "Ethernet" dhcp','  netsh interface ip set address "Ethernet" static <ip> <máscara> <gateway>',
-  '  netsh interface ip set dns "Ethernet" dhcp      |  netsh interface ip set dns "Ethernet" static <ip>','  hostname  |  cls'].join(nl);
+  '  netsh interface ip set dns "Ethernet" dhcp      |  netsh interface ip set dns "Ethernet" static <ip>','  hostname  |  netstat -an  |  cls','Só nos servidores: sc query [serviço]  |  net start <serviço>  |  net stop <serviço>'].join(nl);
+function dupIP(st,d){const c=M.cfgIP(st,d);if(!c.up||!c.ip)return false;return Object.values(st.devs).some(o=>o!==d&&M.ehEp(o)&&M.cfgIP(st,o).up&&M.cfgIP(st,o).ip===c.ip)}
 function ipconfigTxt(st,d,all){const c=M.cfgIP(st,d);const L=['','Configuração de IP do Windows',''];
   if(all)L.push('   Nome do host. . . . . . . . . . . . . . . . : '+d.nome,'   Sufixo DNS primário . . . . . . . . . . . . : hvc.local','   Tipo de nó. . . . . . . . . . . . . . . . . : híbrido','   Roteamento de IP ativado. . . . . . . . . . : não','');
   L.push('Adaptador Ethernet Ethernet:','');
   const desc=()=>{if(all)L.push('   Descrição . . . . . . . . . . . . . . . . . : Intel(R) Ethernet Connection I219-LM','   Endereço Físico . . . . . . . . . . . . . . : '+macWin(d.mac),'   DHCP Habilitado . . . . . . . . . . . . . . : '+(c.dhcp?'Sim':'Não'),'   Configuração Automática Habilitada. . . . . : Sim')};
   if(!c.up){L.push('   Estado da mídia . . . . . . . . . . . . . . : mídia desconectada','   Sufixo DNS específico de conexão. . . . . . :');desc();return L.join(nl)}
   L.push('   Sufixo DNS específico de conexão. . . . . . : '+(c.dhcp&&!c.apipa?'hvc.local':''));desc();
-  if(c.apipa)L.push('   Endereço IPv4 de Configuração Automática. . : '+c.ip+'(Preferencial)');else L.push('   Endereço IPv4. . . . . . . . . . . . . . . : '+c.ip+(all?'(Preferencial)':''));
+  if(c.apipa)L.push('   Endereço IPv4 de Configuração Automática. . : '+c.ip+'(Preferencial)');else L.push('   Endereço IPv4. . . . . . . . . . . . . . . : '+c.ip+(dupIP(st,d)?'(Duplicado)':all?'(Preferencial)':''));
   L.push('   Máscara de Sub-rede . . . . . . . . . . . . : '+c.mask,'   Gateway Padrão. . . . . . . . . . . . . . . : '+(c.gw||''));
   if(all){if(c.dhcp&&!c.apipa)L.push('   Concessão Obtida. . . . . . . . . . . . . . : sexta-feira, 30 de outubro de 2026 07:02:11','   Servidor DHCP . . . . . . . . . . . . . . . : '+c.lease.servidor);
     L.push('   Servidores DNS. . . . . . . . . . . . . . . : '+(c.dns||''));if(c.dhcp&&d.nic.dnsManual)L.push('                                                 (DNS definido manualmente)')}
@@ -116,8 +118,17 @@ function win(st,id,s,R){const d=st.devs[id];const o=t=>R.linhas.push(['out',t]),
   if(/^(ajuda|help|\?)$/.test(low))return o(AJ_WIN);
   if(low==='cls'||low==='clear'){R.limpar=true;return}
   if(low==='hostname')return o(d.nome);
+  if(/^netstat(\s+-a?n?o?)?$/.test(low)){const L=['','Conexões ativas','','  Proto  Endereço local          Endereço externo       Estado'];const sv=d.servicos||{};
+    (sv.tcp||[]).slice().sort((a,b)=>a-b).forEach(p=>L.push(`  TCP    ${pad('0.0.0.0:'+p,23)}${pad('0.0.0.0:0',23)}LISTENING`));(sv.udp||[]).forEach(p=>L.push(`  UDP    ${pad('0.0.0.0:'+p,23)}*:*`));
+    if(L.length===4)L.push('  (nenhuma porta escutando)');o(L.join(nl));if(d.svcNomes)nt('» LISTENING = há um serviço esperando conexões nessa porta. Porta que não aparece aqui = ninguém atende, e quem tentar conectar recebe "recusado".');return}
+  if(d.svcNomes){const est=n=>{const[pr,po]=d.svcNomes[n];return(d.servicos[pr]||[]).includes(po)};const acha=x=>Object.keys(d.svcNomes).find(n=>n.toLowerCase()===String(x).toLowerCase());
+    if(m=low.match(/^sc\s+query(?:\s+(\S+))?$/)){const ns=m[1]?[acha(m[1])].filter(Boolean):Object.keys(d.svcNomes);if(!ns.length)return o('[SC] EnumQueryServicesStatus:OpenService FALHA 1060:\n\nO serviço especificado não existe como serviço instalado.');
+      return o(ns.map(n=>`\nNOME_DO_SERVIÇO: ${n}\n        TIPO               : 10  WIN32_OWN_PROCESS\n        ESTADO             : ${est(n)?'4  RUNNING':'1  STOPPED'}\n        PORTA              : ${d.svcNomes[n][0].toUpperCase()} ${d.svcNomes[n][1]}`).join(nl))}
+    if(m=low.match(/^(?:net|sc)\s+(start|stop)\s+(\S+)$/)){const n=acha(m[2]);if(!n)return o('O nome do serviço é inválido.\n\nObtenha mais ajuda digitando NET HELPMSG 2185.');const[pr,po]=d.svcNomes[n];const ativo=est(n);
+      if(m[1]==='start'){if(ativo)return o('O serviço solicitado já foi iniciado.');d.servicos[pr]=(d.servicos[pr]||[]).concat(po);d.parados=(d.parados||[]).filter(x=>x!==n);R.mudou=true;return o(`O serviço ${n} está sendo iniciado.\nO serviço ${n} foi iniciado com êxito.`)}
+      if(!ativo)return o('O serviço não foi iniciado.');d.servicos[pr]=d.servicos[pr].filter(x=>x!==po);d.parados=(d.parados||[]).concat(n);R.mudou=true;return o(`O serviço ${n} está sendo finalizado.\nO serviço ${n} foi finalizado com êxito.`)}}
   if(m=low.match(/^ipconfig(\s+\/all)?$/)){o(ipconfigTxt(st,d,!!m[1]));const c=M.cfgIP(st,d);
-    if(c.apipa)nt('» 169.254.x.x = APIPA: o Windows pediu IP ao DHCP e ninguém respondeu.');if(!c.up)nt('» Mídia desconectada = sem link físico (cabo, porta do switch desligada ou bloqueada).');return}
+    if(c.apipa)nt('» 169.254.x.x = APIPA: o Windows pediu IP ao DHCP e ninguém respondeu.');if(dupIP(st,d))nt('» "(Duplicado)": o Windows detectou outro equipamento usando o MESMO IP nesta rede.');if(!c.up)nt('» Mídia desconectada = sem link físico (cabo, porta do switch desligada ou bloqueada).');return}
   if(low==='ipconfig /renew'){if(d.tipo==='srv'||!d.nic.dhcp)return o('\nConfiguração de IP do Windows\n\nA operação falhou porque nenhum adaptador está no estado permissível para esta operação.'),nt('» O IP deste equipamento é fixo (estático): o DHCP não age aqui.');
     if(!M.cfgIP(st,d).up)return o('\nConfiguração de IP do Windows\n\nNão é possível executar nenhuma operação em Ethernet enquanto a mídia estiver desconectada.');
     const ok=M.renovar(st,d,{registrar:true});R.mudou=true;if(!ok)return o('\nConfiguração de IP do Windows\n\nOcorreu um erro ao renovar a interface Ethernet: Não foi possível contatar o servidor DHCP. Tempo limite da solicitação esgotado.');return o(ipconfigTxt(st,d,false))}
@@ -183,11 +194,11 @@ function ajudaIos(t,d){const l3=d.tipo==='l3';
     '  show interfaces status | show interfaces <porta> | show interfaces trunk','  show vlan brief | show spanning-tree [vlan N] | show etherchannel summary',
     '  show mac address-table | show cdp neighbors | show logging','  show running-config [interface <porta>]'+(l3?' | show ip interface brief':''),
     ...(l3?['  show ip route | show access-lists | show ip dhcp binding','  ping <ip> | traceroute <ip>']:[]),'  configure terminal | write memory | exit'].join(nl);
-  if(t.modo==='config')return['Configuração global:','  interface <porta>  |  interface range gi1/0/49 - 50'+(l3?'  |  interface vlan N':''),'  vlan N  |  no vlan N  |  spanning-tree vlan 1-4094 priority N',...(l3?['  ip route <rede> <máscara> <próximo-salto>  |  no ip route ...','  ip access-list extended <NOME>']:[]),'  end  |  exit  |  do <comando show>'].join(nl);
+  if(t.modo==='config')return['Configuração global:','  interface <porta>  |  interface range gi1/0/49 - 50'+(l3?'  |  interface vlan N':''),'  ip dhcp snooping  |  ip dhcp snooping vlan N'+(l3?'  |  ip dhcp pool VLAN10':''),'  vlan N  |  no vlan N  |  spanning-tree vlan 1-4094 priority N',...(l3?['  ip route <rede> <máscara> <próximo-salto>  |  no ip route ...','  ip access-list extended <NOME>']:[]),'  end  |  exit  |  do <comando show>'].join(nl);
   if(t.modo==='if')return['Configuração de interface:','  shutdown | no shutdown | description <texto>','  switchport mode access|trunk | switchport access vlan N','  switchport trunk allowed vlan <lista> | add <lista> | remove <lista>  |  switchport trunk native vlan N',
-    '  channel-group N mode active|passive|on | no channel-group','  speed auto|100|1000 | duplex auto|full|half','  spanning-tree portfast | spanning-tree bpduguard enable | spanning-tree bpdufilter enable (e "no ...")',...(l3?['  no switchport | ip address <ip> <máscara> | ip access-group <NOME> in|out']:[]),'  exit | end'].join(nl);
+    '  channel-group N mode active|passive|on | no channel-group','  speed auto|100|1000 | duplex auto|full|half','  ip dhcp snooping trust | no ip dhcp snooping trust','  spanning-tree portfast | spanning-tree bpduguard enable | spanning-tree bpdufilter enable (e "no ...")',...(l3?['  no switchport | ip address <ip> <máscara> | ip access-group <NOME> in|out']:[]),'  exit | end'].join(nl);
   if(t.modo==='vlan')return'  name <NOME>  |  exit  |  end';
-  if(t.modo==='acl')return['ACL estendida:','  [seq] permit|deny ip|tcp|udp|icmp <origem> <destino> [eq <porta>]','     origem/destino: any | host <ip> | <rede> <curinga>','  no <seq>  |  exit  |  end'].join(nl);return''}
+  if(t.modo==='acl')return['ACL estendida:','  [seq] permit|deny ip|tcp|udp|icmp <origem> <destino> [eq <porta>]','     origem/destino: any | host <ip> | <rede> <curinga>','  no <seq>  |  exit  |  end'].join(nl);if(t.modo==='dhcp')return['Escopo DHCP:','  dns-server <ip>  |  default-router <ip>  |  network <rede> <máscara>  |  exit  |  end'].join(nl);return''}
 function ios(st,id,s,R){const d=st.devs[id],t=T(st,id);const o=x=>R.linhas.push(['out',x]);
   if(/^(\?|ajuda|help)$/i.test(s))return o(ajudaIos(t,d));
   const toks=s.split(/\s+/);let c;
@@ -279,14 +290,14 @@ function runIf(st,d,n){const p=d.ifs[n];const L=['interface '+M.nomeLongo(n)];if
   if(p.aclIn)L.push(` ip access-group ${p.aclIn} in`);if(p.aclOut)L.push(` ip access-group ${p.aclOut} out`);
   if(p.speed!=='auto')L.push(' speed '+p.speed);if(p.duplex!=='auto')L.push(' duplex '+p.duplex);
   if(p.cg)L.push(` channel-group ${p.cg.n} mode ${p.cg.mode}`);if(p.portfast)L.push(' spanning-tree portfast');if(p.bpdufilter)L.push(' spanning-tree bpdufilter enable');if(p.bpduguard)L.push(' spanning-tree bpduguard enable');
-  if(p.shut)L.push(' shutdown');return L}
+  if(p.trust)L.push(' ip dhcp snooping trust');if(p.shut)L.push(' shutdown');return L}
 function runSvi(d,v){const s=d.svis[v];const L=['interface Vlan'+v];L.push(s.ip?` ip address ${s.ip} ${s.mask}`:' no ip address');if(s.aclIn)L.push(` ip access-group ${s.aclIn} in`);if(s.aclOut)L.push(` ip access-group ${s.aclOut} out`);if(s.shut)L.push(' shutdown');return L}
 function shRun(st,d,soIf){if(soIf){let L;if(/^Vlan/.test(soIf)){if(!d.svis||!d.svis[+soIf.slice(4)])return null;L=runSvi(d,+soIf.slice(4))}else{if(!d.ifs[soIf])return null;L=runIf(st,d,soIf)}
     return['Building configuration...','',`Current configuration : ${L.join(nl).length+6} bytes`,'!',...L,'end'].join(nl)}
   const L=['Building configuration...','','Current configuration : 6142 bytes','!','version 17.9','service timestamps log datetime msec','hostname '+d.nome,'!'];
   if(d.tipo==='l3')L.push('ip routing','!');
   for(const v in d.dhcp){const p=d.dhcp[v];L.push('ip dhcp pool VLAN'+v,` network ${M.redeDe(p.gw,p.mask)} ${p.mask}`,` default-router ${p.gw}`,` dns-server ${p.dns}`,'!')}
-  L.push('spanning-tree mode rapid-pvst');if(d.stpPrio!==32768)L.push('spanning-tree vlan 1-4094 priority '+d.stpPrio);if(d.errRecov)L.push('errdisable recovery cause bpduguard');L.push('!');
+  L.push('spanning-tree mode rapid-pvst');if(d.stpPrio!==32768)L.push('spanning-tree vlan 1-4094 priority '+d.stpPrio);if(d.snoop&&d.snoop.vlans.length)L.push('ip dhcp snooping vlan '+M.vlansTxt(d.snoop.vlans));if(d.snoop&&d.snoop.on)L.push('ip dhcp snooping');if(d.errRecov)L.push('errdisable recovery cause bpduguard');L.push('!');
   for(const v of Object.keys(d.vlans).map(Number).filter(v=>v!==1).sort((a,b)=>a-b))L.push('vlan '+v,' name '+d.vlans[v],'!');
   for(const n of portasOrd(d))L.push(...runIf(st,d,n),'!');
   if(d.tipo==='l3'){for(const v of Object.keys(d.svis).map(Number).sort((a,b)=>a-b))L.push(...runSvi(d,v),'!');
@@ -335,6 +346,10 @@ function show(st,id,toks,R){const d=st.devs[id];const o=x=>R.linhas.push(['out',
   if(c=casar(toks,'interfaces <if> switchport')||casar(toks,'interfaces <if> [counters]')){const r=shIntDet(st,d,c[0]);return r?o(r):R.linhas.push(['bad','% Invalid input detected at \'^\' marker.'])}
   if(casar(toks,'ip interface brief')){if(d.tipo!=='l3')nt('» Switch camada 2: as portas não têm IP.');return o(shIpBrief(st,d))}
   if(casar(toks,'ip route')){if(d.tipo!=='l3')return o('Default gateway is not set\n\nHost               Gateway           Last Use    Total Uses  Interface\nICMP redirect cache is empty'),nt('» Switch camada 2: não roteia. Quem roteia aqui é o CORE-01.');return o(shRoute(st,d))}
+  if(casar(toks,'ip dhcp snooping')){const sn=d.snoop||{on:false,vlans:[]};const tr=portasOrd(d).filter(n=>d.ifs[n].trust);
+    o([`Switch DHCP snooping is ${sn.on?'enabled':'disabled'}`,'DHCP snooping is configured on following VLANs:',sn.vlans.length?M.vlansTxt(sn.vlans):'none','DHCP snooping is operational on following VLANs:',sn.on&&sn.vlans.length?M.vlansTxt(sn.vlans):'none','','Interface                  Trusted    Allow option    Rate limit (pps)','-----------------------    -------    ------------    ----------------',...tr.map(n=>pad(M.nomeLongo(n),27)+pad('yes',11)+pad('yes',16)+'unlimited')].join(nl));
+    if(sn.on&&!tr.length)nt('» Nenhuma porta confiável (trusted): ofertas DHCP vindas do servidor de verdade também serão descartadas.');return}
+  if(casar(toks,'ip dhcp pool')){if(d.tipo!=='l3')return R.linhas.push(['bad','% Este switch não é servidor DHCP.']);return o(Object.keys(d.dhcp).map(v=>{const P=d.dhcp[v];return`\nPool VLAN${v} :\n Network                     : ${M.redeDe(P.gw,P.mask)} ${P.mask}\n Default router              : ${P.gw}\n DNS server                  : ${P.dns}\n Leased addresses            : ${Object.values(st.devs).filter(e=>e.lease&&e.lease.vlan===+v).length}`}).join(nl))}
   if(casar(toks,'ip dhcp binding')){const r=shDhcp(st,d);return r?o(r):R.linhas.push(['bad','% Este switch não é servidor DHCP.'])}
   if(casar(toks,'vlan [brief]'))return o(shVlan(st,d));
   if(c=casar(toks,'spanning-tree vlan <n>'))return o(shStp(st,d,c[0]));
@@ -368,6 +383,11 @@ function iosConfig(st,id,toks,s,R){const d=st.devs[id],t=T(st,id);let c;const o=
   if(c=casar(toks,'vlan <n>')){if(c[0]<1||c[0]>4094)return bad('% Invalid input detected at \'^\' marker.');mudar(st,id,R,()=>{if(d.vlans[c[0]]===undefined)d.vlans[c[0]]='VLAN'+String(c[0]).padStart(4,'0')});t.modo='vlan';t.vlan=c[0];return}
   if(l3&&(c=casar(toks,'ip route <ip> <ip> <ip>'))){if(!M.mascaraOk(c[1]))return bad('%Inconsistent address and mask');if(d.rotas.some(r=>r.rede===c[0]&&r.mask===c[1]&&r.nh===c[2]))return;mudar(st,id,R,()=>d.rotas.push({rede:c[0],mask:c[1],nh:c[2]}));t.modo='config';return}
   if(l3&&(c=casar(toks,'no ip route <ip> <ip> [<ip>]')||casar(toks,'no ip route <ip> <ip>'))){mudar(st,id,R,()=>{d.rotas=d.rotas.filter(r=>!(r.rede===c[0]&&r.mask===c[1]&&(!c[2]||r.nh===c[2])))});t.modo='config';return}
+  if(c=casar(toks,'ip dhcp pool <w>')){const v=+((c[0].match(/(\d+)$/)||[])[1]);if(d.tipo!=='l3'||!d.dhcp[v])return bad('% Neste laboratório os escopos DHCP ficam no CORE-01: VLAN10, VLAN20 e VLAN30.');t.modo='dhcp';t.pool=v;return}
+  if(casar(toks,'ip dhcp snooping')){mudar(st,id,R,()=>{d.snoop=d.snoop||{on:false,vlans:[]};d.snoop.on=true});return}
+  if(casar(toks,'no ip dhcp snooping')){mudar(st,id,R,()=>{if(d.snoop)d.snoop.on=false});return}
+  if(c=casar(toks,'ip dhcp snooping vlan <w>')){const l=M.listaVlans(c[0]);if(!l)return invalido(R);mudar(st,id,R,()=>{d.snoop=d.snoop||{on:false,vlans:[]};d.snoop.vlans=[...new Set(d.snoop.vlans.concat(l))].sort((a,b)=>a-b)});if(!d.snoop.on)nt('» Falta ligar o recurso no switch: ip dhcp snooping');return}
+  if(c=casar(toks,'no ip dhcp snooping vlan <w>')){const l=M.listaVlans(c[0])||[];mudar(st,id,R,()=>{if(d.snoop)d.snoop.vlans=d.snoop.vlans.filter(v=>!l.includes(v))});return}
   if(l3&&(c=casar(toks,'ip access-list extended <w>'))){if(!d.acls[c[0]])d.acls[c[0]]={regras:[]};t.modo='acl';t.acl=c[0];return}
   if(l3&&(c=casar(toks,'no ip access-list extended <w>'))){mudar(st,id,R,()=>delete d.acls[c[0]]);t.modo='config';return}
   if(c=casar(toks,'spanning-tree vlan <w> priority <n>')){if(c[1]%4096)return bad('% Bridge Priority must be in increments of 4096.\n% Allowed values are:\n  0     4096  8192  12288 16384 20480 24576 28672\n  32768 36864 40960 45056 49152 53248 57344 61440');mudar(st,id,R,()=>d.stpPrio=c[1]);t.modo='config';return}
@@ -375,6 +395,11 @@ function iosConfig(st,id,toks,s,R){const d=st.devs[id],t=T(st,id);let c;const o=
   if(casar(toks,'no spanning-tree vlan *'))return bad('% Desligar o STP não é suportado neste simulador (e quase nunca é boa ideia em produção).');
   if(casar(toks,'errdisable recovery cause *')){d.errRecov=true;d.naoSalvo=true;return nt('» Recuperação automática configurada (300 s). Ela religa a porta sozinha; se a causa continuar, a porta cai de novo.')}
   if(casar(toks,'hostname *'))return bad('% No simulador o hostname é fixo (o mapa depende dele).');
+  if(t.modo==='dhcp'){const P=d.dhcp[t.pool];
+    if(c=casar(toks,'dns-server <ip>'))return mudar(st,id,R,()=>P.dns=c[0]);
+    if(c=casar(toks,'default-router <ip>'))return mudar(st,id,R,()=>P.gw=c[0]);
+    if(c=casar(toks,'network <ip> <ip>')){if(M.redeDe(P.gw,P.mask)!==M.redeDe(c[0],c[1])||P.mask!==c[1])return bad('% A rede do escopo não bate com a da interface VLAN. Neste laboratório a rede do escopo é fixa.');return}
+    if(casar(toks,'lease *')||casar(toks,'domain-name *'))return;return invalido(R)}
   if(t.modo==='vlan'){if(c=casar(toks,'name <w>')){d.vlans[t.vlan]=c[0].toUpperCase().slice(0,32);d.naoSalvo=true;return}return invalido(R)}
   if(t.modo==='acl')return aclCfg(st,id,toks,R);
   if(t.modo==='if')return ifCfg(st,id,toks,R);
@@ -421,6 +446,8 @@ function ifCfg(st,id,toks,R){const d=st.devs[id],t=T(st,id);let c;const o=x=>R.l
   if(casar(toks,'no ip address'))return mudar(st,id,R,()=>{svis.forEach(n=>{cfgSvi(n).ip=null});fis.forEach(n=>{d.ifs[n].ip=null})});
   if(c=casar(toks,'ip access-group <w> in|out')){const k=c[1]==='in'?'aclIn':'aclOut';return mudar(st,id,R,()=>{svis.forEach(n=>cfgSvi(n)[k]=c[0]);fis.forEach(n=>d.ifs[n][k]=c[0])})}
   if(c=casar(toks,'no ip access-group <w> in|out')||casar(toks,'no ip access-group <w>')){const k=c[1]==='out'?'aclOut':'aclIn';return mudar(st,id,R,()=>{svis.forEach(n=>cfgSvi(n)[k]=null);fis.forEach(n=>d.ifs[n][k]=null)})}
+  if(casar(toks,'ip dhcp snooping trust'))return cadaL2(p=>p.trust=true);
+  if(casar(toks,'no ip dhcp snooping trust'))return cadaL2(p=>p.trust=false);
   if(casar(toks,'spanning-tree portfast [edge]'))return mudar(st,id,R,()=>fis.forEach(n=>d.ifs[n].portfast=true));
   if(casar(toks,'no spanning-tree portfast'))return mudar(st,id,R,()=>fis.forEach(n=>d.ifs[n].portfast=false));
   if(casar(toks,'spanning-tree bpduguard enable'))return mudar(st,id,R,()=>fis.forEach(n=>d.ifs[n].bpduguard=true));

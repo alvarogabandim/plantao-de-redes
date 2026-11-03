@@ -1,7 +1,7 @@
 /* Plantão de Redes · service worker: funciona sem internet (ônibus, metrô).
    Online: busca a versão nova primeiro (rede com tempo limite) e guarda cópia.
    Offline: usa a cópia guardada. */
-const CACHE='plantao-v4';
+const CACHE='plantao-v5';
 const BASE=['./','index.html','motor.js','cli.js','aulas.js','captura.js','manifest.webmanifest','icones/icone-192.png','icones/icone-512.png','icones/apple-touch-icon.png','icones/favicon-32.png','v1/'];
 self.addEventListener('install',e=>{e.waitUntil(caches.open(CACHE).then(c=>c.addAll(BASE)).then(()=>self.skipWaiting()))});
 self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim()))});
