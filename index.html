@@ -244,6 +244,7 @@ details.doc summary{cursor:pointer;font-weight:600;font-size:.9rem;color:var(--a
       <button class="btn" id="bFechar" type="button">Encerrar chamado</button>
       <button class="btn sec" id="bDica" type="button">Pedir dica</button>
       <button class="btn perigo" id="bDesistir" type="button">Ver solução</button>
+      <button class="btn sec" id="bPular" type="button">Pular</button>
       <label class="tg2"><input type="checkbox" id="cTutor" checked> notas do tutor</label>
     </div>
     <div class="dicas" id="dicas"></div>
@@ -366,9 +367,9 @@ function montarMenu(){$('iRec').textContent=G.rec;const n=MODS.filter(feito).len
   if(emCh)$('mVoltarTxt').textContent=`${G.ch.num} · ${G.ch.defeitos[0].ticket.titulo}`;if(emAula)$('mVoltarTxt').textContent=`Aula: ${MODS[G.mod].t} (passo ${G.passo+1})`;
   $('mTreino').disabled=!n;
   let h='';for(const fx of[0,1,2]){const ms=MODS.filter(m=>m.faixa===fx);h+=`<div class="nivel"><span>${FAIXA[fx]}</span><span>${ms.filter(feito).length}/${ms.length}</span></div><p class="mute pequeno">${FAIXA_TXT[fx]}</p><div class="mods">`;
-    ms.forEach(m=>{const l=liberado(m),f=feito(m),p=pm&&pm.id===m.id;h+=`<button class="mod ${p?'prox':''}" type="button" data-m="${m.i}" ${l?'':'disabled'}><span class="n"><span>${rotulo(m)}</span><span class="e">${f?'★'.repeat(PROG[m.id].est)+'☆'.repeat(3-PROG[m.id].est):l?'novo':'🔒'}</span></span><b>${esc(m.t)}</b></button>`});h+='</div>'}
+    ms.forEach(m=>{const l=liberado(m),f=feito(m),p=pm&&pm.id===m.id;h+=`<button class="mod ${p?'prox':''}" type="button" data-m="${m.i}" ${l?'':'disabled'}><span class="n"><span>${rotulo(m)}</span><span class="e">${f?estrelas(m):l?'novo':'🔒'}</span></span><b>${esc(m.t)}</b></button>`});h+='</div>'}
   $('trilha').innerHTML=h;$('trilha').querySelectorAll('.mod').forEach(b=>b.onclick=()=>intro(+b.dataset.m));
-  $('treinoLista').innerHTML=MODS.filter(feito).map(m=>`<button class="mod" type="button" data-m="${m.i}"><span class="n"><span>${rotulo(m)}</span><span class="e">${'★'.repeat(PROG[m.id].est)}</span></span><b>${esc(m.t)}</b></button>`).join('')||'<p class="mute">Conclua a primeira aula da trilha.</p>';
+  $('treinoLista').innerHTML=MODS.filter(feito).map(m=>`<button class="mod" type="button" data-m="${m.i}"><span class="n"><span>${rotulo(m)}</span><span class="e">${estrelas(m)}</span></span><b>${esc(m.t)}</b></button>`).join('')||'<p class="mute">Conclua a primeira aula da trilha.</p>';
   $('treinoLista').querySelectorAll('.mod').forEach(b=>b.onclick=()=>{const m=MODS[+b.dataset.m];m.tipo==='aula'?iniciarAula(m.i):iniciar('treino',m.i)})}
 function intro(i){const m=MODS[i];if(m.tipo==='aula'){$('introCard').innerHTML=`<div class="intro" style="display:grid;gap:10px">
   <div class="cab" style="font:600 .76rem var(--mono);color:var(--mute)">${rotulo(m)} de ${MODS.length} · Trainee</div><h2>${esc(m.t)}</h2><h3>Nesta aula</h3><p>${esc(m.obj)}</p>
@@ -386,25 +387,28 @@ function intro(i){const m=MODS[i];if(m.tipo==='aula'){$('introCard').innerHTML=`
   $('ovIntro').hidden=false;$('iGo').onclick=()=>iniciar('modulo',i);$('iBack').onclick=()=>{$('ovIntro').hidden=true}}
 function iniciar(modo,i){const m=i!=null?MODS[i]:null;Object.assign(G,{modo,mod:i,forcar:m?m.id:null,nivelMax:modo==='plantao'?nivelLib():3,n:0,pts:0,vidas:3,resolvidos:0,recentes:[],ativo:true,pausado:false});
   $('ovIntro').hidden=true;fecharMenu();proximo()}
-function iniciarAula(i){const m=MODS[i];Object.assign(G,{modo:'aula',mod:i,passo:0,passoOk:false,ativo:true,pausado:false,resolvido:false,ch:null,n:0,st:Motor.criarRede(),log:{},hist:{},hp:{},anim:null,fx:[],aberto:performance.now()});
+function iniciarAula(i){const m=MODS[i];Object.assign(G,{modo:'aula',mod:i,passo:0,passoOk:false,pulouPasso:false,ativo:true,pausado:false,resolvido:false,ch:null,n:0,st:Motor.criarRede(),log:{},hist:{},hp:{},anim:null,fx:[],aberto:performance.now()});
   G.dev=m.dev;for(const id of ABAS)G.log[id]=[['sys',boasVindas(id)]];$('ovIntro').hidden=true;fecharMenu();$('dicas').innerHTML='';$('deb').hidden=true;$('acoesCh').hidden=true;
   aulaRender();abas();tela();mapa();hud();aba('console');bip('novo');window.scrollTo({top:0,behavior:'smooth'})}
 function aulaRender(){const m=MODS[G.mod],p=m.passos[G.passo],ult=G.passo===m.passos.length-1;
-  let h=`<div class="cab"><span>${rotulo(m)}</span><span class="pri P3">Trainee</span><span>passo ${G.passo+1} de ${m.passos.length}</span></div><h1>${esc(m.t)}</h1><p>${p.txt}</p>`;
+  let h=`<div class="cab"><span>${rotulo(m)}</span><span class="pri P3">Trainee</span><span>passo ${G.passo+1} de ${m.passos.length}</span><button class="lnk" id="bPularAula" type="button" style="margin-left:auto">pular aula</button></div><h1>${esc(m.t)}</h1><p>${p.txt}</p>`;
   if(p.faca)h+=`<div class="faca"><b class="rot">FAÇA</b>${p.faca}</div>`;
-  if(p.ok&&G.passoOk)h+=`<div class="certo"><b class="rot">✓ ISSO!</b>${p.depois}</div>`;
+  if(p.ok&&G.passoOk)h+=`<div class="certo"><b class="rot">${G.pulouPasso?'PULADO · O QUE ACONTECERIA':'✓ ISSO!'}</b>${p.depois}</div>`;
   if(!p.ok||G.passoOk)h+=`<div class="acoes"><button class="btn" id="bPasso" type="button">${ult?'Concluir aula':'Próximo passo →'}</button></div>`;
-  else h+='<p class="mute pequeno">Clique num comando destacado para copiá-lo para o console e aperte Enter. Errou a digitação? Sem problema, digite de novo.</p>';
+  else h+='<p class="mute pequeno">Clique num comando destacado para copiá-lo para o console e aperte Enter. Errou a digitação? Sem problema, digite de novo. <button class="lnk" id="bPularPasso" type="button">pular este passo</button></p>';
   $('ticket').innerHTML=h;$('ticket').querySelectorAll('.faca code,.certo code').forEach(c=>{c.title='Clique para copiar para o console';c.onclick=()=>{$('cmd').value=c.textContent;$('cmd').focus()}});
-  const b=$('bPasso');if(b)b.onclick=()=>{if(ult)return concluirAula();G.passo++;G.passoOk=false;aulaRender();$('ticket').scrollIntoView({behavior:'smooth',block:'start'})}}
+  $('bPularAula').onclick=pularEtapa;const bp=$('bPularPasso');if(bp)bp.onclick=()=>{G.passoOk=true;G.pulouPasso=true;aulaRender()};
+  const b=$('bPasso');if(b)b.onclick=()=>{if(ult)return concluirAula();G.passo++;G.passoOk=false;G.pulouPasso=false;aulaRender();$('ticket').scrollIntoView({behavior:'smooth',block:'start'})}}
 function verificaAula(dev,v,R){if(G.modo!=='aula'||G.resolvido)return;const p=MODS[G.mod].passos[G.passo];if(!p.ok||G.passoOk)return;let ok=false;try{ok=p.ok({dev,cmd:v.trim().toLowerCase(),R,st:G.st})}catch(e){}
-  if(ok){G.passoOk=true;aulaRender();setTimeout(()=>bip('ok'),120);const t=$('ticket');t.classList.remove('brilha');void t.offsetWidth;t.classList.add('brilha')}}
+  if(ok){G.passoOk=true;G.pulouPasso=false;aulaRender();setTimeout(()=>bip('ok'),120);const t=$('ticket');t.classList.remove('brilha');void t.offsetWidth;t.classList.add('brilha')}}
 function concluirAula(){aba('chamado');const m=MODS[G.mod];const novo=salvarModulo(3);G.resolvido=true;const prox=MODS[m.i+1];
   let h=`<h2>Aula concluída!</h2>`;if(novo&&prox)h+=`<p class="fala">Liberado: <b>${rotulo(prox)} · ${esc(prox.t)}</b>.${prox.faixa>m.faixa?` Você chegou ao <b>${FAIXA[prox.faixa]}</b>: agora são chamados reais, sem passo a passo. Use as dicas sem medo.`:''}</p>`;
   h+=`<div class="acoes">${prox?'<button class="btn" id="bProx" type="button">Próxima etapa</button>':''}<button class="btn sec" id="bRep" type="button">Refazer aula</button><button class="btn sec" id="bMenu2" type="button">Menu</button></div>`;
   const d=$('deb');d.innerHTML=h;d.hidden=false;if(prox)$('bProx').onclick=()=>intro(prox.i);$('bRep').onclick=()=>iniciarAula(m.i);$('bMenu2').onclick=abrirMenu;burst(POS.CORE[0],POS.CORE[1],'var(--accent)',26);bip('ok');
   setTimeout(()=>d.scrollIntoView({behavior:'smooth',block:'start'}),200)}
-function salvarModulo(est){const m=MODS[G.mod];const antes=PROG[m.id]?PROG[m.id].est:0;PROG[m.id]={est:Math.max(antes,est)};ls.set('progresso',PROG);return!antes}
+function salvarModulo(est,pulou){const m=MODS[G.mod];const a=PROG[m.id];const antes=a?a.est:0;PROG[m.id]={est:Math.max(antes,est),pulado:!!pulou&&!(a&&!a.pulado)&&Math.max(antes,est)===0};ls.set('progresso',PROG);return!a}
+const estrelas=m=>PROG[m.id].pulado?'pulado':'★'.repeat(PROG[m.id].est)+'☆'.repeat(3-PROG[m.id].est);
+function pularEtapa(){const m=MODS[G.mod];salvarModulo(0,true);G.resolvido=true;const prox=MODS[m.i+1];toast('Etapa pulada',[prox?'Liberado: '+rotulo(prox)+' · '+prox.t:'Fim da trilha','Volte nela quando quiser pela Trilha ou pelo Treino livre.'],true,3500);prox?intro(prox.i):abrirMenu()}
 
 /* ---------- chamado ---------- */
 const celular=()=>matchMedia('(max-width:760px)').matches;
@@ -503,7 +507,7 @@ function passoFx(dt){const g=$('fx');if(!g)return;if(!G.fx.length){if(g.childEle
 
 /* ---------- HUD, SLA, dicas ---------- */
 const mmss=s=>{s=Math.max(0,Math.ceil(s));return String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0')};
-function hud(){document.body.classList.toggle('aula',G.modo==='aula'&&G.ativo);$('bPausa').hidden=G.modo!=='plantao'||!G.ativo;$('hPts').parentNode.hidden=G.modo!=='plantao';$('hN').textContent=G.n||'–';$('hNiv').textContent=G.ch?G.ch.nivel:'–';$('hPts').textContent=G.pts;$('hRec').textContent=G.rec;
+function hud(){$('bPular').hidden=G.modo==='plantao';$('bPular').textContent=G.modo==='modulo'?'Pular chamado':'Outro chamado';document.body.classList.toggle('aula',G.modo==='aula'&&G.ativo);$('bPausa').hidden=G.modo!=='plantao'||!G.ativo;$('hPts').parentNode.hidden=G.modo!=='plantao';$('hN').textContent=G.n||'–';$('hNiv').textContent=G.ch?G.ch.nivel:'–';$('hPts').textContent=G.pts;$('hRec').textContent=G.rec;
   $('hVidas').style.color=G.modo!=='plantao'?'var(--mute)':'';$('hVidas').textContent=G.modo==='aula'?'aula '+(G.mod+1):G.modo==='modulo'?'chamado '+(G.mod+1):G.modo==='treino'?'treino':'♥'.repeat(G.vidas)+'♡'.repeat(3-G.vidas);
   if(G.modo!=='plantao'||!G.ch){$('slaTxt').textContent='sem SLA';$('slaBar').style.width='0%';return}
   $('slaBar').style.width=(G.sla/G.slaMax*100)+'%';$('slaTxt').textContent=G.estourou?'SLA estourado':'SLA '+mmss(G.sla);$('sla').classList.toggle('alerta',G.sla<60||G.estourou)}
@@ -564,7 +568,7 @@ $('bSair').onclick=()=>{$('ovPausa').hidden=true;abrirMenu()};
 $('bSom').onclick=()=>{G.som=!G.som;ls.set('som',G.som);$('bSom').textContent='Som: '+(G.som?'on':'off')};
 $('cTutor').onchange=e=>{G.tutor=e.target.checked;ls.set('tutor',G.tutor);tela()};
 $('cPortas').onchange=e=>{G.portas=e.target.checked;ls.set('portas',G.portas);mapa()};
-$('bDica').onclick=dica;$('bFechar').onclick=encerrar;$('bDesistir').onclick=desistir;
+$('bPular').onclick=()=>{if(!G.ativo||G.resolvido)return;if(G.modo==='modulo')return pularEtapa();G.resolvido=true;proximo()};$('bDica').onclick=dica;$('bFechar').onclick=encerrar;$('bDesistir').onclick=desistir;
 $('bDeNovo').onclick=abrirMenu;$('bMenu').onclick=abrirMenu;
 $('mCont').onclick=()=>{const m=proxMod();m?intro(m.i):iniciar('plantao')};$('mTrilha').onclick=()=>mostrarView('vTrilha');$('mTreino').onclick=()=>mostrarView('vTreino');$('mComo').onclick=()=>mostrarView('vComo');
 $('mPlantao').onclick=()=>iniciar('plantao');$('mVoltar').onclick=()=>{fecharMenu();if(G.modo==='plantao')pausar(false)};
